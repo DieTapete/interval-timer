@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interval Timer</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #1a1d24;
+    --surface-2: #242833;
+    --border: #2e333f;
+    --text: #e6e8ec;
+    --muted: #8b90a0;
+    --accent: #4f8cff;
+    --accent-2: #38d39f;
+    --warn: #ffb02e;
+    --danger: #ff5c5c;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 760px; margin: 0 auto; padding: 16px 16px 80px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 20px; }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  header h1 span { color: var(--accent); }
+
+  nav { display: flex; gap: 6px; background: var(--surface); padding: 4px; border-radius: 12px; }
+  nav button {
+    flex: 1; border: 0; background: transparent; color: var(--muted);
+    padding: 9px 10px; border-radius: 9px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: .15s;
+  }
+  nav button.active { background: var(--surface-2); color: var(--text); }
+  nav button:hover:not(.active) { color: var(--text); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-top: 14px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 12px; font-weight: 700; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 600; }
+  input, select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 9px 11px; border-radius: 10px; font-size: 14px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  button.btn {
+    border: 0; border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: .15s; background: var(--surface-2); color: var(--text);
+  }
+  button.btn:hover { filter: brightness(1.15); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.green { background: var(--accent-2); color: #08221a; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); }
+  .btn.sm { padding: 6px 10px; font-size: 12px; }
+  .btn.icon { padding: 6px 9px; }
+  .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+
+  .muted { color: var(--muted); font-size: 13px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 14px; }
+
+  .list-item {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .list-item .meta { min-width: 0; }
+  .list-item .name { font-weight: 700; font-size: 14px; }
+  .list-item .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .pill { display: inline-block; background: var(--bg); border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; font-size: 11px; color: var(--muted); margin: 2px 4px 2px 0; }
+
+  .phase-builder { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; align-items: end; }
+  @media (max-width: 560px){ .phase-builder { grid-template-columns: 1fr 1fr auto; } }
+
+  /* Runner overlay */
+  .runner {
+    position: fixed; inset: 0; background: var(--bg); z-index: 50;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;
+  }
+  .runner .stage { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .runner .phase-name { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
+  .runner .time { font-size: 96px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 8px 0 16px; }
+  .runner .upnext { color: var(--muted); font-size: 14px; margin-top: 4px; min-height: 20px; }
+  .runner .progress { width: 100%; max-width: 420px; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 22px; }
+  .runner .progress > div { height: 100%; background: var(--accent); transition: width .25s linear; }
+  .runner .controls { display: flex; gap: 12px; margin-top: 26px; }
+  .runner.work { box-shadow: inset 0 0 0 6px rgba(79,140,255,.35); }
+  .runner.rest { box-shadow: inset 0 0 0 6px rgba(56,211,159,.35); }
+  .runner.prep { box-shadow: inset 0 0 0 6px rgba(255,176,46,.35); }
+  .runner .done-screen .big { font-size: 40px; font-weight: 800; }
+
+  /* Calendar */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cal-dow { text-align: center; font-size: 11px; color: var(--muted); font-weight: 700; padding-bottom: 4px; }
+  .cal-cell {
+    aspect-ratio: 1; border: 1px solid var(--border); border-radius: 9px; background: var(--bg);
+    padding: 4px; font-size: 11px; color: var(--muted); position: relative; overflow: hidden;
+  }
+  .cal-cell.today { border-color: var(--accent); }
+  .cal-cell.empty { border: 0; background: transparent; }
+  .cal-cell .dots { position: absolute; bottom: 4px; left: 4px; right: 4px; display: flex; flex-wrap: wrap; gap: 2px; }
+  .cal-cell .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); }
+  .cal-cell.has { background: var(--surface-2); }
+  .legend { font-size: 12px; color: var(--muted); margin-top: 12px; display:flex; align-items:center; gap:6px;}
+
+  .stat-row { display: flex; gap: 10px; margin-top: 12px; }
+  .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat .n { font-size: 24px; font-weight: 800; }
+  .stat .l { font-size: 11px; color: var(--muted); }
+
+  .timer-chip { display:flex; align-items:center; gap:8px; background: var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-top:8px; }
+  .timer-chip .grab { cursor:default; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  hr.sep { border:0; border-top:1px solid var(--border); margin:14px 0; }
+
+  .resume-banner { display:flex; align-items:center; gap:12px; cursor:pointer; border-color: var(--accent-2); }
+  .resume-banner .name { font-weight:700; font-size:14px; }
+  .resume-banner .sub { font-size:12px; color: var(--muted); margin-top:2px; }
+
+  .sessionscreen { background: var(--bg); align-items: flex-start; justify-content: flex-start; overflow-y:auto; }
+  .session-inner { width:100%; max-width:560px; margin:0 auto; padding: 24px 18px 60px; }
+  .session-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .session-title { font-size:26px; font-weight:800; margin-bottom:4px; }
+  .ex-item { display:flex; align-items:center; gap:12px; background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px; }
+  .ex-item.done { opacity:.6; }
+  .ex-item .ex-num { width:30px; height:30px; flex:0 0 30px; border-radius:50%; background: var(--surface-2); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; }
+  .ex-item.done .ex-num { background: var(--accent-2); color:#08221a; }
+  .ex-item .name { font-weight:700; font-size:15px; }
+  .ex-item .sub { font-size:12px; color: var(--muted); margin-top:2px; }
+  .btn.ghost.danger { background:transparent; color:var(--danger); border:1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="app" x-data="app()" x-init="init()">
+
+  <header>
+    <h1>Interval<span>·</span>Timer</h1>
+    <div class="row">
+      <button class="btn ghost sm" @click="exportData()">Export</button>
+      <button class="btn ghost sm" @click="$refs.importInput.click()">Import</button>
+      <input type="file" accept="application/json,.json" x-ref="importInput" style="display:none" @change="importData($event)">
+    </div>
+  </header>
+
+  <nav>
+    <button :class="{active: tab==='programs'}" @click="tab='programs'">Programs</button>
+    <button :class="{active: tab==='timers'}" @click="tab='timers'">Timers</button>
+    <button :class="{active: tab==='calendar'}" @click="tab='calendar'">Calendar</button>
+  </nav>
+
+  <!-- ===== Active-session resume banner ===== -->
+  <template x-if="session && !showSession && !run.active">
+    <div class="card resume-banner" @click="resumeSession()">
+      <div class="grow">
+        <div class="name" x-text="'▶ '+session.name"></div>
+        <div class="sub" x-text="sessionDoneCount()+' / '+session.timerIds.length+' exercises done — tap to resume'"></div>
+      </div>
+      <button class="btn green sm" @click.stop="resumeSession()">Resume</button>
+    </div>
+  </template>
+
+  <!-- ============ TIMERS TAB ============ -->
+  <template x-if="tab==='timers'">
+    <div>
+      <div class="card">
+        <h2 x-text="editingTimer ? 'Edit timer' : 'New timer'"></h2>
+        <label>Name</label>
+        <input x-model="tForm.name" placeholder="e.g. Burpees">
+
+        <div style="margin-top:12px">
+          <label>Sets (the whole phase sequence repeats this many times)</label>
+          <input type="number" min="1" style="max-width:120px" x-model.number="tForm.sets">
+        </div>
+
+        <div style="margin-top:12px">
+          <label>Phases (one round)</label>
+          <template x-for="(ph, i) in tForm.phases" :key="i">
+            <div class="phase-builder" style="margin-top:8px">
+              <div>
+                <label x-show="i===0">Phase name</label>
+                <input x-model="ph.name" placeholder="Work / Rest">
+              </div>
+              <div>
+                <label x-show="i===0">Seconds</label>
+                <input type="number" min="1" x-model.number="ph.seconds">
+              </div>
+              <button class="btn danger icon" @click="tForm.phases.splice(i,1)" x-show="tForm.phases.length>1">✕</button>
+            </div>
+          </template>
+          <button class="btn ghost sm" style="margin-top:10px" @click="tForm.phases.push({name:'Rest',seconds:5})">+ Add phase</button>
+        </div>
+
+        <div class="muted" style="margin-top:12px">
+          One round: <strong x-text="fmt(roundDuration(tForm))"></strong> ·
+          Total (<span x-text="tForm.sets||1"></span> sets): <strong x-text="fmt(timerDuration(tForm))"></strong>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <button class="btn primary" @click="saveTimer()">Save timer</button>
+          <button class="btn ghost" x-show="editingTimer" @click="resetTimerForm()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Saved timers</h2>
+        <template x-if="timers.length===0"><div class="empty">No timers yet. Create one above.</div></template>
+        <template x-for="t in timers" :key="t.id">
+          <div class="list-item">
+            <div class="meta grow">
+              <div class="name" x-text="t.name"></div>
+              <div class="sub">
+                <span class="pill" x-text="(t.sets||1)+' sets'"></span>
+                <template x-for="ph in t.phases" :key="ph.name+ph.seconds">
+                  <span class="pill" x-text="ph.name+' '+ph.seconds+'s'"></span>
+                </template>
+                · <span x-text="fmt(timerDuration(t))"></span>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn green sm" @click="runSingle(t)">▶</button>
+              <button class="btn sm" @click="editTimer(t)">Edit</button>
+              <button class="btn danger sm" @click="confirmId===t.id ? deleteTimer(t.id) : confirmId=t.id" @mouseleave="confirmId=null" x-text="confirmId===t.id?'Sure?':'Del'"></button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ PROGRAMS TAB ============ -->
+  <template x-if="tab==='programs'">
+    <div>
+      <div class="card">
+        <h2 x-text="editingProgram ? 'Edit program' : 'New program'"></h2>
+        <label>Program name</label>
+        <input x-model="pForm.name" placeholder="e.g. Morning Routine">
+
+        <hr class="sep">
+        <label>Add timers to this program</label>
+        <div class="row">
+          <select class="grow" x-model="pForm.pick">
+            <option value="">— choose a timer —</option>
+            <template x-for="t in timers" :key="t.id">
+              <option :value="t.id" x-text="t.name+' ('+fmt(timerDuration(t))+')'"></option>
+            </template>
+          </select>
+          <button class="btn primary" @click="addTimerToProgram()" :disabled="!pForm.pick">Add</button>
+        </div>
+
+        <template x-if="pForm.timerIds.length===0"><div class="muted" style="margin-top:10px">No timers added yet.</div></template>
+        <template x-for="(tid, idx) in pForm.timerIds" :key="idx">
+          <div class="timer-chip">
+            <span class="grow" x-text="(idx+1)+'. '+timerName(tid)"></span>
+            <button class="btn sm icon" @click="moveTimer(idx,-1)" :disabled="idx===0">↑</button>
+            <button class="btn sm icon" @click="moveTimer(idx,1)" :disabled="idx===pForm.timerIds.length-1">↓</button>
+            <button class="btn danger sm icon" @click="pForm.timerIds.splice(idx,1)">✕</button>
+          </div>
+        </template>
+
+        <div class="muted" style="margin-top:12px" x-show="pForm.timerIds.length">
+          Total program: <strong x-text="fmt(programDuration(pForm.timerIds))"></strong>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || !pForm.timerIds.length">Save program</button>
+          <button class="btn ghost" x-show="editingProgram" @click="resetProgramForm()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Your programs</h2>
+        <template x-if="programs.length===0"><div class="empty">No programs yet. Build one from your timers.</div></template>
+        <template x-for="p in programs" :key="p.id">
+          <div class="list-item">
+            <div class="meta grow">
+              <div class="name" x-text="p.name"></div>
+              <div class="sub">
+                <span x-text="p.timerIds.length+' timers'"></span> ·
+                <span x-text="fmt(programDuration(p.timerIds))"></span> ·
+                <span x-text="completionCount(p.id)+'× done'"></span>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn green sm" x-show="!(session && session.programId===p.id)" @click="startProgram(p)">▶ Start</button>
+              <button class="btn green sm" x-show="session && session.programId===p.id" @click="resumeSession()">↻ Resume</button>
+              <button class="btn sm" @click="editProgram(p)">Edit</button>
+              <button class="btn danger sm" @click="confirmId===p.id ? deleteProgram(p.id) : confirmId=p.id" @mouseleave="confirmId=null" x-text="confirmId===p.id?'Sure?':'Del'"></button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ CALENDAR TAB ============ -->
+  <template x-if="tab==='calendar'">
+    <div>
+      <div class="card">
+        <div class="stat-row">
+          <div class="stat"><div class="n" x-text="totalSessions()"></div><div class="l">Sessions</div></div>
+          <div class="stat"><div class="n" x-text="currentStreak()"></div><div class="l">Day streak</div></div>
+          <div class="stat"><div class="n" x-text="thisMonthCount()"></div><div class="l">This month</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cal-head">
+          <button class="btn ghost sm" @click="calShift(-1)">‹</button>
+          <strong x-text="calLabel()"></strong>
+          <button class="btn ghost sm" @click="calShift(1)">›</button>
+        </div>
+        <div class="cal-grid">
+          <template x-for="d in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="d">
+            <div class="cal-dow" x-text="d"></div>
+          </template>
+          <template x-for="(cell,i) in calCells()" :key="i">
+            <div class="cal-cell" :class="{empty: !cell, today: cell && cell.isToday, has: cell && cell.sessions.length}">
+              <template x-if="cell">
+                <div>
+                  <span x-text="cell.day"></span>
+                  <div class="dots">
+                    <template x-for="(s,si) in cell.sessions.slice(0,6)" :key="si">
+                      <span class="dot" :title="s.name"></span>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div class="legend"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-2);display:inline-block"></span> = completed session</div>
+      </div>
+
+      <div class="card">
+        <h2>Recent sessions</h2>
+        <template x-if="log.length===0"><div class="empty">Complete a program to see it here.</div></template>
+        <template x-for="s in recentLog()" :key="s.ts">
+          <div class="list-item">
+            <div class="meta grow">
+              <div class="name" x-text="s.name"></div>
+              <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+            </div>
+            <button class="btn danger sm" @click="deleteLog(s.ts)">✕</button>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ PROGRAM SESSION SCREEN ============ -->
+  <template x-if="session && showSession && !run.active">
+    <div class="runner sessionscreen">
+      <div class="session-inner">
+        <div class="session-top">
+          <button class="btn ghost sm" @click="minimizeSession()">‹ Back to app</button>
+          <span class="muted" x-text="sessionDoneCount()+' / '+session.timerIds.length"></span>
+        </div>
+        <h2 class="session-title" x-text="session.name"></h2>
+        <div class="muted" style="margin-bottom:10px">Start each exercise when you're ready.</div>
+
+        <template x-for="(t, i) in sessionTimers()" :key="i">
+          <div class="ex-item" :class="{done: session.exDone[i]}">
+            <div class="ex-num" x-text="session.exDone[i] ? '✓' : (i+1)"></div>
+            <div class="grow">
+              <div class="name" x-text="t.name"></div>
+              <div class="sub" x-text="(t.sets||1)+' sets · '+fmt(timerDuration(t))"></div>
+            </div>
+            <button class="btn green sm" x-show="!session.exDone[i]" @click="startExercise(i)">▶ Start</button>
+            <button class="btn ghost sm" x-show="session.exDone[i]" @click="startExercise(i)">Redo</button>
+          </div>
+        </template>
+
+        <template x-if="sessionAllDone()">
+          <div class="card" style="margin-top:16px;text-align:center;background:var(--surface-2)">
+            <div style="font-size:22px;font-weight:800">🎉 All exercises done!</div>
+            <button class="btn green" style="margin-top:12px" @click="finishSession()">Finish &amp; log it</button>
+          </div>
+        </template>
+
+        <div style="margin-top:18px">
+          <button class="btn danger ghost sm"
+            @click="confirmId==='session' ? abandonSession() : confirmId='session'"
+            @mouseleave="confirmId=null"
+            x-text="confirmId==='session' ? 'Sure? Discard progress' : 'Abandon program'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ INTERVAL RUNNER OVERLAY ============ -->
+  <template x-if="run.active">
+    <div class="runner" :class="run.kind">
+      <template x-if="!run.finished">
+        <div style="width:100%; max-width:480px">
+          <div class="stage" x-text="run.contextLabel"></div>
+          <div class="phase-name" x-text="run.phaseName"></div>
+          <div class="time" x-text="fmtClock(run.remaining)"></div>
+          <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
+          <div class="progress"><div :style="'width:'+run.pct+'%'"></div></div>
+
+          <!-- before first start: big Start button -->
+          <template x-if="run.idx===0 && run.paused && run.pct===0">
+            <div class="controls">
+              <button class="btn green" style="font-size:16px;padding:14px 28px" @click="startRunFromPrep()">▶ Start</button>
+              <button class="btn ghost" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Cancel'"></button>
+            </div>
+          </template>
+
+          <!-- during run -->
+          <template x-if="!(run.idx===0 && run.paused && run.pct===0)">
+            <div class="controls">
+              <button class="btn ghost" @click="togglePause()" x-text="run.paused ? '▶ Resume' : '⏸ Pause'"></button>
+              <button class="btn ghost" @click="skipPhase()">⏭ skip</button>
+              <button class="btn danger" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Stop'"></button>
+            </div>
+          </template>
+        </div>
+      </template>
+      <template x-if="run.finished">
+        <div class="done-screen">
+          <div class="big">✓ Complete</div>
+          <div class="muted" style="margin-top:8px" x-text="run.label"></div>
+          <button class="btn green" style="margin-top:22px" @click="closeRun()"
+            x-text="run.returnTo==='session' ? 'Back to program' : 'Done'"></button>
+        </div>
+      </template>
+    </div>
+  </template>
+
+
+</div>
+
+<script>
+function app(){
+  return {
+    tab: 'programs',
+    timers: [], programs: [], log: [],
+    cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
+
+    editingTimer: null, editingProgram: null, confirmId: null,
+    tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30},{name:'Rest',seconds:10}] },
+    pForm: { name:'', timerIds:[], pick:'' },
+
+    run: { active:false },
+    session: null,        // persistent in-progress program
+    showSession: false,   // whether the program-run screen is open
+    _tick:null, _audioCtx:null,
+
+    // ---------- persistence ----------
+    init(){
+      this.timers = this.load('it_timers', []);
+      // migrate old format: per-phase sets -> timer-level sets
+      let changed=false;
+      this.timers.forEach(t=>{
+        if(t.sets===undefined){
+          const maxSets=Math.max(1,...t.phases.map(p=>p.sets||1));
+          t.sets=maxSets;
+          t.phases=t.phases.map(p=>({name:p.name,seconds:p.seconds}));
+          changed=true;
+        }
+      });
+      this.programs = this.load('it_programs', []);
+      this.log = this.load('it_log', []);
+      this.session = this.load('it_session', null);
+      if(changed) this.save();
+    },
+    load(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+    save(){
+      localStorage.setItem('it_timers', JSON.stringify(this.timers));
+      localStorage.setItem('it_programs', JSON.stringify(this.programs));
+      localStorage.setItem('it_log', JSON.stringify(this.log));
+    },
+    saveSession(){
+      if(this.session) localStorage.setItem('it_session', JSON.stringify(this.session));
+      else localStorage.removeItem('it_session');
+    },
+    uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) },
+
+    // ---------- formatting ----------
+    fmt(s){ s=Math.round(s); const m=Math.floor(s/60), x=s%60; return m? m+'m '+(x?x+'s':''):x+'s' },
+    fmtClock(s){ s=Math.max(0,Math.ceil(s)); const m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0') },
+
+    // ---------- timer logic ----------
+    roundDuration(t){ return (t.phases||[]).reduce((a,p)=>a+(p.seconds||0),0) },
+    timerDuration(t){ return this.roundDuration(t)*Math.max(1,t.sets||1) },
+    programDuration(ids){ return ids.reduce((a,id)=>{const t=this.timers.find(x=>x.id===id);return a+(t?this.timerDuration(t):0)},0) },
+    timerName(id){ const t=this.timers.find(x=>x.id===id); return t?t.name:'(deleted)' },
+
+    saveTimer(){
+      if(!this.tForm.name.trim()) { alert('Give the timer a name'); return }
+      const clean = JSON.parse(JSON.stringify(this.tForm));
+      clean.sets = Math.max(1, +clean.sets || 1);
+      clean.phases = clean.phases.filter(p=>p.seconds>0).map(p=>({name:p.name||'Phase',seconds:+p.seconds}));
+      if(!clean.phases.length){ alert('Add at least one phase'); return }
+      if(this.editingTimer){ const i=this.timers.findIndex(x=>x.id===this.editingTimer); clean.id=this.editingTimer; this.timers[i]=clean; }
+      else { clean.id=this.uid(); this.timers.push(clean); }
+      this.save(); this.resetTimerForm();
+    },
+    editTimer(t){ this.editingTimer=t.id; this.tForm=JSON.parse(JSON.stringify(t)); window.scrollTo({top:0,behavior:'smooth'}); },
+    deleteTimer(id){ this.timers=this.timers.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
+    resetTimerForm(){ this.editingTimer=null; this.tForm={name:'',sets:1,phases:[{name:'Work',seconds:30},{name:'Rest',seconds:10}]}; },
+
+    // ---------- program logic ----------
+    addTimerToProgram(){ if(this.pForm.pick){ this.pForm.timerIds.push(this.pForm.pick); this.pForm.pick=''; } },
+    moveTimer(i,dir){ const j=i+dir; if(j<0||j>=this.pForm.timerIds.length)return; const a=this.pForm.timerIds; [a[i],a[j]]=[a[j],a[i]]; },
+    saveProgram(){
+      const clean={ name:this.pForm.name.trim(), timerIds:[...this.pForm.timerIds] };
+      if(!clean.name||!clean.timerIds.length)return;
+      if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
+      else { clean.id=this.uid(); this.programs.push(clean); }
+      this.save(); this.resetProgramForm();
+    },
+    editProgram(p){ this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],pick:''}; window.scrollTo({top:0,behavior:'smooth'}); },
+    deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
+    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],pick:''}; },
+
+    // ---------- build run steps (single exercise/timer) ----------
+    buildSteps(timer){
+      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting'}];
+      const sets=Math.max(1,timer.sets||1);
+      for(let s=1;s<=sets;s++){
+        timer.phases.forEach(ph=>{
+          const isRest=/rest|pause|break/i.test(ph.name);
+          steps.push({
+            name: ph.name,
+            seconds: ph.seconds,
+            kind: isRest?'rest':'work',
+            ctx: timer.name + (sets>1?' · set '+s+'/'+sets:'')
+          });
+        });
+      }
+      return steps;
+    },
+
+    // ---------- single timer quick run (from Timers tab) ----------
+    runSingle(timer){
+      const steps=this.buildSteps(timer);
+      this.run={
+        active:true, finished:false, paused:true, returnTo:'app',
+        steps, idx:0, remaining:steps[0].seconds,
+        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
+        upNext: steps[1]? steps[1].name : '', pct:0,
+        label: timer.name, logOnFinish:true, programId:null, exIndex:null
+      };
+      this._startTick();
+    },
+
+    // ---------- program session ----------
+    startProgram(p){
+      const list=p.timerIds.map(id=>this.timers.find(t=>t.id===id)).filter(Boolean);
+      if(!list.length){ alert('This program has no valid timers.'); return; }
+      this.session={
+        programId:p.id, name:p.name,
+        timerIds:p.timerIds.filter(id=>this.timers.find(t=>t.id===id)),
+        exDone: p.timerIds.filter(id=>this.timers.find(t=>t.id===id)).map(()=>false),
+        startedTs: Date.now()
+      };
+      this.saveSession();
+      this.showSession=true;
+    },
+    resumeSession(){ this.showSession=true; },
+    minimizeSession(){ this.showSession=false; },   // back to main app, session kept
+    sessionTimers(){ return (this.session?.timerIds||[]).map(id=>this.timers.find(t=>t.id===id)).filter(Boolean); },
+    sessionAllDone(){ return this.session && this.session.exDone.length>0 && this.session.exDone.every(Boolean); },
+    sessionDoneCount(){ return this.session? this.session.exDone.filter(Boolean).length : 0; },
+
+    startExercise(i){
+      const t=this.timers.find(x=>x.id===this.session.timerIds[i]);
+      if(!t)return;
+      const steps=this.buildSteps(t);
+      this.run={
+        active:true, finished:false, paused:true, returnTo:'session',
+        steps, idx:0, remaining:steps[0].seconds,
+        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
+        upNext: steps[1]? steps[1].name : '', pct:0,
+        label: t.name, logOnFinish:false, programId:this.session.programId, exIndex:i
+      };
+      this._startTick();
+    },
+
+    finishSession(){
+      // log completion if all done, then clear session
+      if(this.sessionAllDone()){
+        this.log.push({ ts:Date.now(), programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date()) });
+        this.save();
+      }
+      this.session=null; this.saveSession(); this.showSession=false;
+    },
+    abandonSession(){ this.session=null; this.saveSession(); this.showSession=false; this.confirmId=null; },
+
+    // ---------- interval ticking ----------
+    _startTick(){
+      clearInterval(this._tick);
+      let last=performance.now();
+      this._tick=setInterval(()=>{
+        if(this.run.paused){ last=performance.now(); return; }
+        const now=performance.now(), dt=(now-last)/1000; last=now;
+        this.run.remaining-=dt;
+        const cur=this.run.steps[this.run.idx];
+        this.run.pct=Math.min(100,(1-this.run.remaining/cur.seconds)*100);
+        if(this.run.remaining<=3.999 && Math.ceil(this.run.remaining)!==Math.ceil(this.run.remaining+dt) && this.run.remaining>0){
+          this.beep(660,0.07);
+        }
+        if(this.run.remaining<=0){ this._advance(); }
+      },50);
+    },
+    _advance(){
+      this.run.idx++;
+      if(this.run.idx>=this.run.steps.length){ this._finishRun(); return; }
+      const cur=this.run.steps[this.run.idx];
+      this.run.remaining=cur.seconds; this.run.kind=cur.kind;
+      this.run.phaseName=cur.name; this.run.contextLabel=cur.ctx; this.run.pct=0;
+      this.run.upNext=this.run.steps[this.run.idx+1]?this.run.steps[this.run.idx+1].name:'';
+      this.beep(cur.kind==='rest'?440:880,0.12);
+    },
+    _finishRun(){
+      clearInterval(this._tick);
+      this.beep(990,0.18); setTimeout(()=>this.beep(1320,0.22),180);
+      this.run.finished=true;
+      if(this.run.logOnFinish){
+        this.log.push({ ts:Date.now(), programId:null, name:this.run.label, date:this._dateKey(new Date()) });
+        this.save();
+      }
+      if(this.run.returnTo==='session' && this.session && this.run.exIndex!=null){
+        this.session.exDone[this.run.exIndex]=true;
+        this.saveSession();
+      }
+    },
+    startRunFromPrep(){ // user presses the big start; un-pause and beep
+      this.run.paused=false; this.beep(880,0.12);
+    },
+    togglePause(){ this.run.paused=!this.run.paused; },
+    skipPhase(){ this.run.remaining=0; },
+    // leave the interval overlay back to where we came from (session keeps progress, but
+    // the current in-progress exercise is NOT marked done)
+    exitRun(){
+      clearInterval(this._tick);
+      const back=this.run.returnTo;
+      this.run={active:false};
+      if(back==='session'){ this.showSession=true; }
+    },
+    // called from the "Done" button on the finished screen
+    closeRun(){
+      clearInterval(this._tick);
+      const back=this.run.returnTo;
+      this.run={active:false};
+      if(back==='session'){ this.showSession=true; }
+    },
+
+    // ---------- audio ----------
+    beep(freq,dur){
+      try{
+        this._audioCtx=this._audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+        const ctx=this._audioCtx, o=ctx.createOscillator(), g=ctx.createGain();
+        o.frequency.value=freq; o.type='sine'; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.18,ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+dur);
+        o.start(); o.stop(ctx.currentTime+dur);
+      }catch(e){}
+    },
+
+    // ---------- log / stats ----------
+    completionCount(pid){ return this.log.filter(l=>l.programId===pid).length },
+    totalSessions(){ return this.log.length },
+    thisMonthCount(){ const n=new Date(); return this.log.filter(l=>{const d=new Date(l.ts);return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length },
+    currentStreak(){
+      if(!this.log.length)return 0;
+      const days=new Set(this.log.map(l=>l.date));
+      let streak=0, d=new Date();
+      while(days.has(this._dateKey(d))){ streak++; d.setDate(d.getDate()-1); }
+      // allow streak to start yesterday if nothing today
+      if(streak===0){ d=new Date(); d.setDate(d.getDate()-1); while(days.has(this._dateKey(d))){streak++;d.setDate(d.getDate()-1);} }
+      return streak;
+    },
+    recentLog(){ return [...this.log].sort((a,b)=>b.ts-a.ts).slice(0,12) },
+    deleteLog(ts){ this.log=this.log.filter(l=>l.ts!==ts); this.save(); },
+
+    // ---------- calendar ----------
+    _dateKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0') },
+    calLabel(){ return new Date(this.cal.y,this.cal.m,1).toLocaleString(undefined,{month:'long',year:'numeric'}) },
+    calShift(n){ let m=this.cal.m+n,y=this.cal.y; if(m<0){m=11;y--} if(m>11){m=0;y++} this.cal.m=m; this.cal.y=y; },
+    calCells(){
+      const y=this.cal.y,m=this.cal.m;
+      const first=new Date(y,m,1); let lead=(first.getDay()+6)%7; // Monday start
+      const days=new Date(y,m+1,0).getDate();
+      const today=this._dateKey(new Date());
+      const cells=[];
+      for(let i=0;i<lead;i++)cells.push(null);
+      for(let day=1;day<=days;day++){
+        const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+        cells.push({ day, isToday:key===today, sessions:this.log.filter(l=>l.date===key) });
+      }
+      return cells;
+    },
+
+    // ---------- export / import ----------
+    exportData(){
+      const data=JSON.stringify({timers:this.timers,programs:this.programs,log:this.log},null,2);
+      try{
+        const blob=new Blob([data],{type:'application/json'});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url; a.download='interval-timer-data.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }catch(e){
+        // Fallback for sandboxed contexts where downloads are blocked
+        const w=window.open('','_blank');
+        if(w){ w.document.write('<pre>'+data.replace(/</g,'&lt;')+'</pre>'); }
+        else { prompt('Copy your data:', data); }
+      }
+    },
+    importData(ev){
+      const file=ev.target.files && ev.target.files[0];
+      if(!file)return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const d=JSON.parse(reader.result);
+          if(!d || typeof d!=='object') throw new Error('bad');
+          const mode = this.timers.length||this.programs.length||this.log.length
+            ? (confirm('Replace all current data?\n\nOK = replace everything\nCancel = merge with existing') ? 'replace' : 'merge')
+            : 'replace';
+          if(mode==='replace'){
+            this.timers = d.timers||[];
+            this.programs = d.programs||[];
+            this.log = d.log||[];
+          }else{
+            const ids=new Set(this.timers.map(t=>t.id));
+            (d.timers||[]).forEach(t=>{ if(!ids.has(t.id)) this.timers.push(t); });
+            const pids=new Set(this.programs.map(p=>p.id));
+            (d.programs||[]).forEach(p=>{ if(!pids.has(p.id)) this.programs.push(p); });
+            const ts=new Set(this.log.map(l=>l.ts));
+            (d.log||[]).forEach(l=>{ if(!ts.has(l.ts)) this.log.push(l); });
+          }
+          this.save();
+          alert('Imported '+(d.timers?.length||0)+' timers, '+(d.programs?.length||0)+' programs, '+(d.log?.length||0)+' sessions.');
+        }catch(e){
+          alert('Could not import: the file is not valid Interval-Timer data.');
+        }
+        ev.target.value='';
+      };
+      reader.readAsText(file);
+    },
+  }
+}
+</script>
+</body>
+</html>
