@@ -407,7 +407,7 @@
         <div style="width:100%; max-width:480px">
           <div class="stage" x-text="run.contextLabel"></div>
           <div class="phase-name" x-text="run.phaseName"></div>
-          <div class="time" x-text="fmtClock(run.remaining)"></div>
+          <div class="time" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
           <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
           <div class="progress"><div :style="'width:'+run.pct+'%'"></div></div>
 
@@ -491,7 +491,12 @@ function app(){
 
     // ---------- formatting ----------
     fmt(s){ s=Math.round(s); const m=Math.floor(s/60), x=s%60; return m? m+'m '+(x?x+'s':''):x+'s' },
-    fmtClock(s){ s=Math.max(0,Math.ceil(s)); const m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0') },
+    fmtClock(s, total){
+      if(total!==undefined && total<1){ return Math.max(0,Math.round(s*1000)) }
+      s=Math.max(0,Math.ceil(s));
+      if(total!==undefined && total<60){ return s }
+      const m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0')
+    },
 
     // ---------- timer logic ----------
     roundDuration(t){ return (t.phases||[]).reduce((a,p)=>a+(p.seconds||0),0) },
