@@ -55,6 +55,7 @@
     padding: 9px 11px; border-radius: 10px; font-size: 14px; outline: none;
   }
   input:focus, select:focus { border-color: var(--accent); }
+  input[type=color] { padding: 3px; height: 38px; cursor: pointer; }
 
   button.btn {
     border: 0; border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700;
@@ -81,8 +82,8 @@
 
   .pill { display: inline-block; background: var(--bg); border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; font-size: 11px; color: var(--muted); margin: 2px 4px 2px 0; }
 
-  .phase-builder { display: grid; grid-template-columns: 1fr 110px auto; gap: 8px; align-items: end; }
-  @media (max-width: 560px){ .phase-builder { grid-template-columns: 1fr 1fr auto; } }
+  .phase-builder { display: grid; grid-template-columns: 1fr 110px 58px auto; gap: 8px; align-items: end; }
+  @media (max-width: 560px){ .phase-builder { grid-template-columns: 1fr 1fr 58px auto; } }
 
   /* Runner overlay */
   .runner {
@@ -147,7 +148,10 @@
 <div class="app" x-data="app()" x-init="init()">
 
   <header>
-    <h1>Interval<span>·</span>Timer</h1>
+    <div style="display:flex;align-items:baseline;gap:8px">
+      <h1>Interval<span>·</span>Timer</h1>
+      <span class="muted" style="font-size:11px" x-text="'v'+version"></span>
+    </div>
     <div class="row">
       <button class="btn ghost sm" @click="exportData()">Export</button>
       <button class="btn ghost sm" @click="$refs.importInput.click()">Import</button>
@@ -195,12 +199,23 @@
               </div>
               <div>
                 <label x-show="i===0">Seconds</label>
-                <input type="number" min="1" x-model.number="ph.seconds">
+                <input type="number" min="0.1" step="0.1" x-model.number="ph.seconds">
+              </div>
+              <div>
+                <label x-show="i===0">Color</label>
+                <div style="display:flex;align-items:center;gap:3px;height:38px">
+                  <input type="color"
+                    :value="ph.color||'#4f8cff'"
+                    @change="ph.color=$event.target.value"
+                    :style="ph.color?'':'opacity:0.3'"
+                    style="width:36px;border-radius:8px">
+                  <button type="button" x-show="ph.color" class="btn icon danger" style="padding:3px 7px;font-size:10px" @click="ph.color=''">✕</button>
+                </div>
               </div>
               <button class="btn danger icon" @click="tForm.phases.splice(i,1)" x-show="tForm.phases.length>1">✕</button>
             </div>
           </template>
-          <button class="btn ghost sm" style="margin-top:10px" @click="tForm.phases.push({name:'Rest',seconds:5})">+ Add phase</button>
+          <button class="btn ghost sm" style="margin-top:10px" @click="tForm.phases.push({name:'Rest',seconds:5,color:''})">+ Add phase</button>
         </div>
 
         <div class="muted" style="margin-top:12px">
@@ -402,7 +417,7 @@
 
   <!-- ============ INTERVAL RUNNER OVERLAY ============ -->
   <template x-if="run.active">
-    <div class="runner" :class="run.kind">
+    <div class="runner" :class="run.kind" :style="run.steps[run.idx].color ? 'background:'+run.steps[run.idx].color : ''">
       <template x-if="!run.finished">
         <div style="width:100%; max-width:480px">
           <div class="stage" x-text="run.contextLabel"></div>
@@ -410,6 +425,15 @@
           <div class="time" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
           <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
           <div class="progress"><div :style="'width:'+run.pct+'%'"></div></div>
+          <template x-if="run.totalSets > 1">
+            <div style="width:100%;max-width:420px">
+              <div style="display:flex;justify-content:space-between;margin-top:12px;margin-bottom:4px">
+                <span class="muted" style="font-size:11px">Sets</span>
+                <span class="muted" style="font-size:11px" x-text="run.setNum+' / '+run.totalSets"></span>
+              </div>
+              <div class="progress" style="margin-top:0"><div :style="'width:'+run.setPct+'%; background:var(--accent-2)'"></div></div>
+            </div>
+          </template>
 
           <!-- before first start: big Start button -->
           <template x-if="run.idx===0 && run.paused && run.pct===0">
@@ -447,11 +471,12 @@
 function app(){
   return {
     tab: 'programs',
+    version: '1.1.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
 
     editingTimer: null, editingProgram: null, confirmId: null,
-    tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30},{name:'Rest',seconds:10}] },
+    tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
     pForm: { name:'', timerIds:[], pick:'' },
 
     run: { active:false },
@@ -492,7 +517,7 @@ function app(){
     // ---------- formatting ----------
     fmt(s){ s=Math.round(s); const m=Math.floor(s/60), x=s%60; return m? m+'m '+(x?x+'s':''):x+'s' },
     fmtClock(s, total){
-      if(total!==undefined && total<1){ return Math.max(0,Math.round(s*1000)) }
+      if(total!==undefined && total<1){ return Math.max(0,s).toFixed(1) }
       s=Math.max(0,Math.ceil(s));
       if(total!==undefined && total<60){ return s }
       const m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0')
@@ -508,7 +533,7 @@ function app(){
       if(!this.tForm.name.trim()) { alert('Give the timer a name'); return }
       const clean = JSON.parse(JSON.stringify(this.tForm));
       clean.sets = Math.max(1, +clean.sets || 1);
-      clean.phases = clean.phases.filter(p=>p.seconds>0).map(p=>({name:p.name||'Phase',seconds:+p.seconds}));
+      clean.phases = clean.phases.filter(p=>p.seconds>0).map(p=>({name:p.name||'Phase',seconds:+p.seconds,color:p.color||''}));
       if(!clean.phases.length){ alert('Add at least one phase'); return }
       if(this.editingTimer){ const i=this.timers.findIndex(x=>x.id===this.editingTimer); clean.id=this.editingTimer; this.timers[i]=clean; }
       else { clean.id=this.uid(); this.timers.push(clean); }
@@ -516,7 +541,7 @@ function app(){
     },
     editTimer(t){ this.editingTimer=t.id; this.tForm=JSON.parse(JSON.stringify(t)); window.scrollTo({top:0,behavior:'smooth'}); },
     deleteTimer(id){ this.timers=this.timers.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
-    resetTimerForm(){ this.editingTimer=null; this.tForm={name:'',sets:1,phases:[{name:'Work',seconds:30},{name:'Rest',seconds:10}]}; },
+    resetTimerForm(){ this.editingTimer=null; this.tForm={name:'',sets:1,phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}]}; },
 
     // ---------- program logic ----------
     addTimerToProgram(){ if(this.pForm.pick){ this.pForm.timerIds.push(this.pForm.pick); this.pForm.pick=''; } },
@@ -534,16 +559,21 @@ function app(){
 
     // ---------- build run steps (single exercise/timer) ----------
     buildSteps(timer){
-      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting'}];
       const sets=Math.max(1,timer.sets||1);
+      const pps=timer.phases.length;
+      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting',setNum:0,phaseInSet:0,phasesPerSet:pps,color:''}];
       for(let s=1;s<=sets;s++){
-        timer.phases.forEach(ph=>{
+        timer.phases.forEach((ph,i)=>{
           const isRest=/rest|pause|break/i.test(ph.name);
           steps.push({
             name: ph.name,
             seconds: ph.seconds,
             kind: isRest?'rest':'work',
-            ctx: timer.name + (sets>1?' · set '+s+'/'+sets:'')
+            ctx: timer.name+(sets>1?' · set '+s+'/'+sets:''),
+            setNum: s,
+            phaseInSet: i,
+            phasesPerSet: pps,
+            color: ph.color||''
           });
         });
       }
@@ -553,11 +583,13 @@ function app(){
     // ---------- single timer quick run (from Timers tab) ----------
     runSingle(timer){
       const steps=this.buildSteps(timer);
+      const totalSets=Math.max(1,timer.sets||1);
       this.run={
         active:true, finished:false, paused:true, returnTo:'app',
         steps, idx:0, remaining:steps[0].seconds,
         kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0,
+        setNum:0, totalSets,
         label: timer.name, logOnFinish:true, programId:null, exIndex:null
       };
       this._startTick();
@@ -586,11 +618,13 @@ function app(){
       const t=this.timers.find(x=>x.id===this.session.timerIds[i]);
       if(!t)return;
       const steps=this.buildSteps(t);
+      const totalSets=Math.max(1,t.sets||1);
       this.run={
         active:true, finished:false, paused:true, returnTo:'session',
         steps, idx:0, remaining:steps[0].seconds,
         kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0,
+        setNum:0, totalSets,
         label: t.name, logOnFinish:false, programId:this.session.programId, exIndex:i
       };
       this._startTick();
@@ -616,6 +650,10 @@ function app(){
         this.run.remaining-=dt;
         const cur=this.run.steps[this.run.idx];
         this.run.pct=Math.min(100,(1-this.run.remaining/cur.seconds)*100);
+        const sn=cur.setNum, pip=cur.phaseInSet, pps=cur.phasesPerSet, ts=this.run.totalSets;
+        if(sn>0 && pps>0 && ts>0){
+          this.run.setPct=Math.min(100,((sn-1)*pps+pip+(1-this.run.remaining/cur.seconds))/(ts*pps)*100);
+        }
         if(this.run.remaining<=3.999 && Math.ceil(this.run.remaining)!==Math.ceil(this.run.remaining+dt) && this.run.remaining>0){
           this.beep(660,0.07);
         }
@@ -628,6 +666,9 @@ function app(){
       const cur=this.run.steps[this.run.idx];
       this.run.remaining=cur.seconds; this.run.kind=cur.kind;
       this.run.phaseName=cur.name; this.run.contextLabel=cur.ctx; this.run.pct=0;
+      this.run.setNum=cur.setNum||0;
+      const sn=cur.setNum, pps=cur.phasesPerSet, ts=this.run.totalSets;
+      this.run.setPct=(sn>0&&pps>0&&ts>0) ? ((sn-1)*pps+cur.phaseInSet)/(ts*pps)*100 : 0;
       this.run.upNext=this.run.steps[this.run.idx+1]?this.run.steps[this.run.idx+1].name:'';
       this.beep(cur.kind==='rest'?440:880,0.12);
     },
