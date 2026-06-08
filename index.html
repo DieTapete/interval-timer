@@ -118,6 +118,8 @@
     padding: 4px; font-size: 11px; color: var(--muted); position: relative; overflow: hidden;
   }
   .cal-cell.today { border-color: var(--accent); }
+  .cal-cell.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--surface-2); }
+  .cal-cell:not(.empty) { cursor: pointer; }
   .cal-cell.empty { border: 0; background: transparent; }
   .cal-cell .dots { position: absolute; bottom: 4px; left: 4px; right: 4px; display: flex; flex-wrap: wrap; gap: 2px; }
   .cal-cell .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); }
@@ -349,7 +351,7 @@
             <div class="cal-dow" x-text="d"></div>
           </template>
           <template x-for="(cell,i) in calCells()" :key="i">
-            <div class="cal-cell" :class="{empty: !cell, today: cell && cell.isToday, has: cell && cell.sessions.length}">
+            <div class="cal-cell" :class="{empty: !cell, today: cell && cell.isToday, has: cell && cell.sessions.length, selected: cell && cell.key===cal.selected}" @click="cell && calSelectDay(cell.key)">
               <template x-if="cell">
                 <div>
                   <span x-text="cell.day"></span>
@@ -367,15 +369,37 @@
       </div>
 
       <div class="card">
-        <h2>Recent sessions</h2>
-        <template x-if="log.length===0"><div class="empty">Complete a program to see it here.</div></template>
-        <template x-for="s in recentLog()" :key="s.ts">
-          <div class="list-item">
-            <div class="meta grow">
-              <div class="name" x-text="s.name"></div>
-              <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+        <template x-if="cal.selected">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h2 x-text="calSelectedLabel()"></h2>
+              <button class="btn ghost sm" @click="cal.selected=null">✕ Clear</button>
             </div>
-            <button class="btn danger sm" @click="deleteLog(s.ts)">✕</button>
+            <template x-if="calSelectedLog().length===0"><div class="empty">No sessions on this day.</div></template>
+            <template x-for="s in calSelectedLog()" :key="s.ts">
+              <div class="list-item">
+                <div class="meta grow">
+                  <div class="name" x-text="s.name"></div>
+                  <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+                </div>
+                <button class="btn danger sm" @click="deleteLog(s.ts)">✕</button>
+              </div>
+            </template>
+          </div>
+        </template>
+        <template x-if="!cal.selected">
+          <div>
+            <h2>Recent sessions</h2>
+            <template x-if="log.length===0"><div class="empty">Complete a program to see it here.</div></template>
+            <template x-for="s in recentLog()" :key="s.ts">
+              <div class="list-item">
+                <div class="meta grow">
+                  <div class="name" x-text="s.name"></div>
+                  <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+                </div>
+                <button class="btn danger sm" @click="deleteLog(s.ts)">✕</button>
+              </div>
+            </template>
           </div>
         </template>
       </div>
@@ -480,7 +504,7 @@ function app(){
     tab: 'programs',
     version: '1.1.0',
     timers: [], programs: [], log: [],
-    cal: { y: new Date().getFullYear(), m: new Date().getMonth() },
+    cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
     editingTimer: null, editingProgram: null, confirmId: null,
     tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
@@ -744,7 +768,10 @@ function app(){
     // ---------- calendar ----------
     _dateKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0') },
     calLabel(){ return new Date(this.cal.y,this.cal.m,1).toLocaleString(undefined,{month:'long',year:'numeric'}) },
-    calShift(n){ let m=this.cal.m+n,y=this.cal.y; if(m<0){m=11;y--} if(m>11){m=0;y++} this.cal.m=m; this.cal.y=y; },
+    calShift(n){ let m=this.cal.m+n,y=this.cal.y; if(m<0){m=11;y--} if(m>11){m=0;y++} this.cal.m=m; this.cal.y=y; this.cal.selected=null; },
+    calSelectDay(key){ this.cal.selected = this.cal.selected===key ? null : key; },
+    calSelectedLog(){ return this.log.filter(l=>l.date===this.cal.selected).sort((a,b)=>b.ts-a.ts); },
+    calSelectedLabel(){ if(!this.cal.selected)return ''; const [y,m,d]=this.cal.selected.split('-'); return new Date(+y,+m-1,+d).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}); },
     calCells(){
       const y=this.cal.y,m=this.cal.m;
       const first=new Date(y,m,1); let lead=(first.getDay()+6)%7; // Monday start
@@ -754,7 +781,7 @@ function app(){
       for(let i=0;i<lead;i++)cells.push(null);
       for(let day=1;day<=days;day++){
         const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-        cells.push({ day, isToday:key===today, sessions:this.log.filter(l=>l.date===key) });
+        cells.push({ day, key, isToday:key===today, sessions:this.log.filter(l=>l.date===key) });
       }
       return cells;
     },
