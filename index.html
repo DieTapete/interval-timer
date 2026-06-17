@@ -351,7 +351,7 @@
             <div class="cal-dow" x-text="d"></div>
           </template>
           <template x-for="(cell,i) in calCells()" :key="i">
-            <div class="cal-cell" :class="{empty: !cell, today: cell && cell.isToday, has: cell && cell.sessions.length, selected: cell && cell.key===cal.selected}" @click="cell && calSelectDay(cell.key)">
+            <div class="cal-cell" :class="{empty: !cell, today: cell && cell.isToday, has: cell && (cell.sessions.length || cell.hasPending), selected: cell && cell.key===cal.selected}" @click="cell && calSelectDay(cell.key)">
               <template x-if="cell">
                 <div>
                   <span x-text="cell.day"></span>
@@ -359,13 +359,17 @@
                     <template x-for="(s,si) in cell.sessions.slice(0,6)" :key="si">
                       <span class="dot" :title="s.name"></span>
                     </template>
+                    <span x-show="cell.hasPending" class="dot" style="background:var(--warn)" title="In progress"></span>
                   </div>
                 </div>
               </template>
             </div>
           </template>
         </div>
-        <div class="legend"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-2);display:inline-block"></span> = completed session</div>
+        <div class="legend">
+          <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-2);display:inline-block"></span> completed &nbsp;
+          <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span> in progress
+        </div>
       </div>
 
       <div class="card">
@@ -375,14 +379,36 @@
               <h2 x-text="calSelectedLabel()"></h2>
               <button class="btn ghost sm" @click="cal.selected=null">✕ Clear</button>
             </div>
-            <template x-if="calSelectedLog().length===0"><div class="empty">No sessions on this day.</div></template>
-            <template x-for="s in calSelectedLog()" :key="s.ts">
-              <div class="list-item">
-                <div class="meta grow">
-                  <div class="name" x-text="s.name"></div>
-                  <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+            <template x-if="calSelectedItems().length===0"><div class="empty">No sessions on this day.</div></template>
+            <template x-for="s in calSelectedItems()" :key="s.ts">
+              <div>
+                <div class="list-item" :style="(s.pending?'border-color:var(--warn);':'')+(calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':'')" style="cursor:pointer" @click="calToggleDetail(s.ts)">
+                  <div class="meta grow">
+                    <div class="name" style="display:flex;align-items:center;gap:6px">
+                      <span x-show="s.pending" style="width:8px;height:8px;border-radius:50%;background:var(--warn);flex-shrink:0;display:inline-block"></span>
+                      <span x-text="s.name"></span>
+                    </div>
+                    <div class="sub">
+                      <span x-text="new Date(s.ts).toLocaleString()"></span>
+                      <span x-show="s.pending" style="color:var(--warn);margin-left:6px">· In progress</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <button x-show="s.pending" class="btn green sm" @click.stop="resumeSession()" style="white-space:nowrap">▶ Resume</button>
+                    <button x-show="!s.pending" class="btn danger sm" @click.stop="deleteLog(s.ts)">✕</button>
+                    <span x-show="calSessionTimers(s).length>0" class="muted" style="font-size:11px" x-text="calDetail===s.ts?'▲':'▼'"></span>
+                  </div>
                 </div>
-                <button class="btn danger sm" @click="deleteLog(s.ts)">✕</button>
+                <div x-show="calDetail===s.ts && calSessionTimers(s).length>0" style="background:var(--surface-2);border:1px solid var(--border);border-top:0;border-radius:0 0 12px 12px;padding:8px 14px;margin-bottom:0">
+                  <template x-for="(tr,ti) in calSessionTimers(s)" :key="ti">
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+                      <span :style="'width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:'+(tr.done?'var(--accent-2)':'var(--surface)')">
+                        <span x-text="tr.done?'✓':'○'" :style="tr.done?'color:#08221a':'color:var(--muted)'"></span>
+                      </span>
+                      <span x-text="tr.name" :style="tr.done?'':'color:var(--muted)'"></span>
+                    </div>
+                  </template>
+                </div>
               </div>
             </template>
           </div>
@@ -392,12 +418,25 @@
             <h2>Recent sessions</h2>
             <template x-if="log.length===0"><div class="empty">Complete a program to see it here.</div></template>
             <template x-for="s in recentLog()" :key="s.ts">
-              <div class="list-item">
-                <div class="meta grow">
-                  <div class="name" x-text="s.name"></div>
-                  <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+              <div>
+                <div class="list-item" :style="calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':''" style="cursor:pointer" @click="calToggleDetail(s.ts)">
+                  <div class="meta grow">
+                    <div class="name" x-text="s.name"></div>
+                    <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <button class="btn danger sm" @click.stop="deleteLog(s.ts)">✕</button>
+                    <span x-show="calSessionTimers(s).length>0" class="muted" style="font-size:11px" x-text="calDetail===s.ts?'▲':'▼'"></span>
+                  </div>
                 </div>
-                <button class="btn danger sm" @click="deleteLog(s.ts)">✕</button>
+                <div x-show="calDetail===s.ts && calSessionTimers(s).length>0" style="background:var(--surface-2);border:1px solid var(--border);border-top:0;border-radius:0 0 12px 12px;padding:8px 14px">
+                  <template x-for="(tr,ti) in calSessionTimers(s)" :key="ti">
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+                      <span style="width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:var(--accent-2);color:#08221a">✓</span>
+                      <span x-text="tr.name"></span>
+                    </div>
+                  </template>
+                </div>
               </div>
             </template>
           </div>
@@ -506,7 +545,7 @@ function app(){
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
-    editingTimer: null, editingProgram: null, confirmId: null,
+    editingTimer: null, editingProgram: null, confirmId: null, calDetail: null,
     tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
     pForm: { name:'', timerIds:[], pick:'' },
 
@@ -768,20 +807,36 @@ function app(){
     // ---------- calendar ----------
     _dateKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0') },
     calLabel(){ return new Date(this.cal.y,this.cal.m,1).toLocaleString(undefined,{month:'long',year:'numeric'}) },
-    calShift(n){ let m=this.cal.m+n,y=this.cal.y; if(m<0){m=11;y--} if(m>11){m=0;y++} this.cal.m=m; this.cal.y=y; this.cal.selected=null; },
-    calSelectDay(key){ this.cal.selected = this.cal.selected===key ? null : key; },
+    calShift(n){ let m=this.cal.m+n,y=this.cal.y; if(m<0){m=11;y--} if(m>11){m=0;y++} this.cal.m=m; this.cal.y=y; this.cal.selected=null; this.calDetail=null; },
+    calSelectDay(key){ this.cal.selected = this.cal.selected===key ? null : key; this.calDetail=null; },
     calSelectedLog(){ return this.log.filter(l=>l.date===this.cal.selected).sort((a,b)=>b.ts-a.ts); },
+    calSelectedItems(){
+      const items=this.log.filter(l=>l.date===this.cal.selected).sort((a,b)=>b.ts-a.ts).map(l=>({...l,pending:false}));
+      if(this.session){
+        const pk=this._dateKey(new Date(this.session.startedTs));
+        if(pk===this.cal.selected) items.unshift({ts:this.session.startedTs,name:this.session.name,programId:this.session.programId,date:pk,pending:true,exDone:[...this.session.exDone],timerIds:[...this.session.timerIds]});
+      }
+      return items;
+    },
+    calSessionTimers(item){
+      if(item.pending) return item.timerIds.map((id,i)=>({name:this.timerName(id),done:item.exDone[i]}));
+      const prog=this.programs.find(p=>p.id===item.programId);
+      if(prog) return prog.timerIds.map(id=>({name:this.timerName(id),done:true}));
+      return [];
+    },
+    calToggleDetail(ts){ this.calDetail=this.calDetail===ts?null:ts; },
     calSelectedLabel(){ if(!this.cal.selected)return ''; const [y,m,d]=this.cal.selected.split('-'); return new Date(+y,+m-1,+d).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}); },
     calCells(){
       const y=this.cal.y,m=this.cal.m;
       const first=new Date(y,m,1); let lead=(first.getDay()+6)%7; // Monday start
       const days=new Date(y,m+1,0).getDate();
       const today=this._dateKey(new Date());
+      const pendingKey=this.session ? this._dateKey(new Date(this.session.startedTs)) : null;
       const cells=[];
       for(let i=0;i<lead;i++)cells.push(null);
       for(let day=1;day<=days;day++){
         const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-        cells.push({ day, key, isToday:key===today, sessions:this.log.filter(l=>l.date===key) });
+        cells.push({ day, key, isToday:key===today, sessions:this.log.filter(l=>l.date===key), hasPending:key===pendingKey });
       }
       return cells;
     },
