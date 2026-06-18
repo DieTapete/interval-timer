@@ -541,7 +541,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.4.0',
+    version: '1.4.1',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -669,6 +669,9 @@ function app(){
     startProgram(p){
       const list=p.timerIds.map(id=>this.timers.find(t=>t.id===id)).filter(Boolean);
       if(!list.length){ alert('This program has no valid timers.'); return; }
+      if(this.session && this.session.programId!==p.id){
+        if(!confirm(`"${this.session.name}" is still in progress. Abandon it and start "${p.name}"?`)) return;
+      }
       this.session={
         programId:p.id, name:p.name,
         timerIds:p.timerIds.filter(id=>this.timers.find(t=>t.id===id)),
