@@ -541,7 +541,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.2.0',
+    version: '1.3.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -741,10 +741,12 @@ function app(){
       this.run.setPct=(sn>0&&pps>0&&ts>0) ? ((sn-1)*pps+cur.phaseInSet)/(ts*pps)*100 : 0;
       this.run.upNext=this.run.steps[this.run.idx+1]?this.run.steps[this.run.idx+1].name:'';
       this.beep(cur.kind==='rest'?440:880,0.12);
+      this.vibrate(cur.kind);
     },
     _finishRun(){
       clearInterval(this._tick);
       this.beep(990,0.18); setTimeout(()=>this.beep(1320,0.22),180);
+      this.vibrate('finish');
       this.run.finished=true;
       if(this.run.logOnFinish){
         this.log.push({ ts:Date.now(), programId:null, name:this.run.label, date:this._dateKey(new Date()) });
@@ -756,7 +758,7 @@ function app(){
       }
     },
     startRunFromPrep(){ // user presses the big start; un-pause and beep
-      this.run.paused=false; this.beep(880,0.12);
+      this.run.paused=false; this.beep(880,0.12); this.vibrate('work');
     },
     togglePause(){ this.run.paused=!this.run.paused; },
     skipPhase(){ this.run.remaining=0; },
@@ -785,6 +787,15 @@ function app(){
         g.gain.setValueAtTime(0.18,ctx.currentTime);
         g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+dur);
         o.start(); o.stop(ctx.currentTime+dur);
+      }catch(e){}
+    },
+
+    vibrate(kind){
+      if(!navigator.vibrate) return;
+      try{
+        if(kind==='finish') navigator.vibrate([150,80,150,80,150]);
+        else if(kind==='rest') navigator.vibrate([80,60,80]);
+        else navigator.vibrate(200);
       }catch(e){}
     },
 
