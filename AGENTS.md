@@ -3,7 +3,7 @@
 ## Versioning
 
 - **Bump the version** in `index.html` (`version: '...'`) for every feature or fix. Use semantic versioning: patch (1.0.x) for fixes, minor (1.x.0) for new features.
-- **Tag each release** after pushing: `git tag vX.Y.Z && git push origin vX.Y.Z`
+- **Tag each release** after merging to `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`
 
 ## Branching
 
