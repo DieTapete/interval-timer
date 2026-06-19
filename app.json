@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Interval Timer",
+    "slug": "interval-timer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.personal.intervaltimer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1115"
+      },
+      "package": "com.personal.intervaltimer"
+    },
+    "plugins": [
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
+    ]
+  }
+}
