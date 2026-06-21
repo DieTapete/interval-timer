@@ -357,7 +357,7 @@
                   <span x-text="cell.day"></span>
                   <div class="dots">
                     <template x-for="(s,si) in cell.sessions.slice(0,6)" :key="si">
-                      <span class="dot" :title="s.name"></span>
+                      <span class="dot" :style="isPartialLog(s)?'background:var(--warn)':''" :title="s.name"></span>
                     </template>
                     <span x-show="cell.hasPending" class="dot" style="background:var(--warn)" title="In progress"></span>
                   </div>
@@ -368,7 +368,7 @@
         </div>
         <div class="legend">
           <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-2);display:inline-block"></span> completed &nbsp;
-          <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span> in progress
+          <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span> partial / in progress
         </div>
       </div>
 
@@ -382,15 +382,16 @@
             <template x-if="calSelectedItems().length===0"><div class="empty">No sessions on this day.</div></template>
             <template x-for="s in calSelectedItems()" :key="s.ts">
               <div>
-                <div class="list-item" :style="(s.pending?'border-color:var(--warn);':'')+(calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':'')" style="cursor:pointer" @click="calToggleDetail(s.ts)">
+                <div class="list-item" :style="((s.pending||isPartialLog(s))?'border-color:var(--warn);':'')+(calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':'')" style="cursor:pointer" @click="calToggleDetail(s.ts)">
                   <div class="meta grow">
                     <div class="name" style="display:flex;align-items:center;gap:6px">
-                      <span x-show="s.pending" style="width:8px;height:8px;border-radius:50%;background:var(--warn);flex-shrink:0;display:inline-block"></span>
+                      <span x-show="s.pending||isPartialLog(s)" style="width:8px;height:8px;border-radius:50%;background:var(--warn);flex-shrink:0;display:inline-block"></span>
                       <span x-text="s.name"></span>
                     </div>
                     <div class="sub">
                       <span x-text="new Date(s.ts).toLocaleString()"></span>
                       <span x-show="s.pending" style="color:var(--warn);margin-left:6px">· In progress</span>
+                      <span x-show="!s.pending && isPartialLog(s)" style="color:var(--warn);margin-left:6px">· Partial</span>
                     </div>
                   </div>
                   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -550,7 +551,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.5.0',
+    version: '1.6.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -685,7 +686,7 @@ function app(){
         programId:p.id, name:p.name,
         timerIds:p.timerIds.filter(id=>this.timers.find(t=>t.id===id)),
         exDone: p.timerIds.filter(id=>this.timers.find(t=>t.id===id)).map(()=>false),
-        startedTs: Date.now()
+        startedTs: Date.now(), lastExerciseTs: null
       };
       this.saveSession();
       this.showSession=true;
@@ -695,9 +696,10 @@ function app(){
     sessionTimers(){ return (this.session?.timerIds||[]).map(id=>this.timers.find(t=>t.id===id)).filter(Boolean); },
     sessionAllDone(){ return this.session && this.session.exDone.length>0 && this.session.exDone.every(Boolean); },
     sessionDoneCount(){ return this.session? this.session.exDone.filter(Boolean).length : 0; },
-    markExDone(i){ this.session.exDone[i]=true; this.saveSession(); },
+    markExDone(i){ this.session.exDone[i]=true; this.session.lastExerciseTs=Date.now(); this.saveSession(); },
     logPartialSession(){
-      this.log.push({ ts:Date.now(), programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date()), exDone:[...this.session.exDone], timerIds:[...this.session.timerIds] });
+      const ts=this.session.lastExerciseTs||Date.now();
+      this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)), exDone:[...this.session.exDone], timerIds:[...this.session.timerIds] });
       this.save();
       this.session=null; this.saveSession(); this.showSession=false;
     },
@@ -719,9 +721,9 @@ function app(){
     },
 
     finishSession(){
-      // log completion if all done, then clear session
       if(this.sessionAllDone()){
-        this.log.push({ ts:Date.now(), programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date()) });
+        const ts=this.session.lastExerciseTs||Date.now();
+        this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)) });
         this.save();
       }
       this.session=null; this.saveSession(); this.showSession=false;
@@ -772,6 +774,7 @@ function app(){
       }
       if(this.run.returnTo==='session' && this.session && this.run.exIndex!=null){
         this.session.exDone[this.run.exIndex]=true;
+        this.session.lastExerciseTs=Date.now();
         this.saveSession();
       }
     },
@@ -842,6 +845,7 @@ function app(){
     },
 
     // ---------- log / stats ----------
+    isPartialLog(s){ return !!(s.exDone && s.exDone.some(d=>!d)); },
     completionCount(pid){ return this.log.filter(l=>l.programId===pid).length },
     totalSessions(){ return this.log.length },
     thisMonthCount(){ const n=new Date(); return this.log.filter(l=>{const d=new Date(l.ts);return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length },
