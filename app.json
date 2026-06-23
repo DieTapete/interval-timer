@@ -21,7 +21,8 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }
