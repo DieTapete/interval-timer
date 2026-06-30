@@ -96,17 +96,16 @@
   .runner {
     position: fixed; inset: 0; background: var(--bg); z-index: 50;
     display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;
-    overflow: hidden;
   }
-  .runner .timer-bg {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(88vw, 470px); aspect-ratio: 1; border-radius: 50%;
-    z-index: 0; pointer-events: none;
-  }
-  .runner .timer-content, .runner .done-screen { position: relative; z-index: 1; }
   .runner .stage { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .runner .phase-name { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
-  .runner .time { font-size: 96px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 8px 0 16px; }
+  .runner .time-circle {
+    width: min(78vw, 360px); aspect-ratio: 1; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 14px auto 18px; background: var(--surface-2);
+    transition: background-color .25s linear;
+  }
+  .runner .time { font-size: clamp(56px, 18vw, 96px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; transition: color .25s linear; }
   .runner .upnext { color: var(--muted); font-size: 14px; margin-top: 4px; min-height: 20px; }
   .runner .progress { width: 100%; max-width: 420px; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 22px; }
   .runner .progress > div { height: 100%; background: var(--accent); transition: width .25s linear; }
@@ -502,12 +501,13 @@
   <!-- ============ INTERVAL RUNNER OVERLAY ============ -->
   <template x-if="run.active">
     <div class="runner" :class="run.kind">
-      <div class="timer-bg" x-show="run.steps[run.idx].color" :style="run.steps[run.idx].color ? 'background:'+run.steps[run.idx].color : ''"></div>
       <template x-if="!run.finished">
         <div class="timer-content" style="width:100%; max-width:480px">
           <div class="stage" x-text="run.contextLabel"></div>
           <div class="phase-name" x-text="run.phaseName"></div>
-          <div class="time" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
+          <div class="time-circle" :style="circleStyle()">
+            <div class="time" :style="'color:'+contrastColor(run.steps[run.idx].color)+';transition-duration:'+colorAnimMs()+'ms'" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
+          </div>
           <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
           <div class="progress"><div :style="'width:'+run.pct+'%'+(run.pct===0?';transition:none':'')"></div></div>
           <template x-if="run.totalSets > 1">
@@ -556,7 +556,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.7.0',
+    version: '1.8.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -606,6 +606,26 @@ function app(){
       s=Math.max(0,Math.ceil(s));
       if(total!==undefined && total<60){ return s }
       const m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0')
+    },
+
+    // Adaptive color-fade duration: scales with the phase length so sub-second
+    // pulses fade almost instantly while long phases get a smooth transition.
+    colorAnimMs(){
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const sec=cur ? cur.seconds : 0;
+      return Math.round(Math.min(400, Math.max(0, sec)*400));
+    },
+    circleStyle(){
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const color=(cur && cur.color) ? cur.color : '';
+      return 'transition-duration:'+this.colorAnimMs()+'ms;'+(color ? 'background:'+color : '');
+    },
+    // Pick black/white text for legible contrast against the circle color.
+    contrastColor(hex){
+      if(!hex || hex.length<7) return 'var(--text)';
+      const r=parseInt(hex.substr(1,2),16), g=parseInt(hex.substr(3,2),16), b=parseInt(hex.substr(5,2),16);
+      const L=(0.299*r+0.587*g+0.114*b)/255;
+      return L>0.6 ? '#0b0e14' : '#ffffff';
     },
 
     // ---------- timer logic ----------
