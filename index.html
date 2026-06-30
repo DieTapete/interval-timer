@@ -96,7 +96,14 @@
   .runner {
     position: fixed; inset: 0; background: var(--bg); z-index: 50;
     display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;
+    overflow: hidden;
   }
+  .runner .timer-bg {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(88vw, 470px); aspect-ratio: 1; border-radius: 50%;
+    z-index: 0; pointer-events: none;
+  }
+  .runner .timer-content, .runner .done-screen { position: relative; z-index: 1; }
   .runner .stage { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .runner .phase-name { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
   .runner .time { font-size: 96px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin: 8px 0 16px; }
@@ -104,9 +111,6 @@
   .runner .progress { width: 100%; max-width: 420px; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 22px; }
   .runner .progress > div { height: 100%; background: var(--accent); transition: width .25s linear; }
   .runner .controls { display: flex; gap: 12px; margin-top: 26px; }
-  .runner.work { box-shadow: inset 0 0 0 6px rgba(79,140,255,.35); }
-  .runner.rest { box-shadow: inset 0 0 0 6px rgba(56,211,159,.35); }
-  .runner.prep { box-shadow: inset 0 0 0 6px rgba(255,176,46,.35); }
   .runner .done-screen .big { font-size: 40px; font-weight: 800; }
 
   /* Calendar */
@@ -497,21 +501,22 @@
 
   <!-- ============ INTERVAL RUNNER OVERLAY ============ -->
   <template x-if="run.active">
-    <div class="runner" :class="run.kind" :style="run.steps[run.idx].color ? 'background:'+run.steps[run.idx].color : ''">
+    <div class="runner" :class="run.kind">
+      <div class="timer-bg" x-show="run.steps[run.idx].color" :style="run.steps[run.idx].color ? 'background:'+run.steps[run.idx].color : ''"></div>
       <template x-if="!run.finished">
-        <div style="width:100%; max-width:480px">
+        <div class="timer-content" style="width:100%; max-width:480px">
           <div class="stage" x-text="run.contextLabel"></div>
           <div class="phase-name" x-text="run.phaseName"></div>
           <div class="time" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
           <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
-          <div class="progress"><div :style="'width:'+run.pct+'%'"></div></div>
+          <div class="progress"><div :style="'width:'+run.pct+'%'+(run.pct===0?';transition:none':'')"></div></div>
           <template x-if="run.totalSets > 1">
             <div style="width:100%;max-width:420px">
               <div style="display:flex;justify-content:space-between;margin-top:12px;margin-bottom:4px">
                 <span class="muted" style="font-size:11px">Sets</span>
                 <span class="muted" style="font-size:11px" x-text="run.setNum+' / '+run.totalSets"></span>
               </div>
-              <div class="progress" style="margin-top:0"><div :style="'width:'+run.setPct+'%; background:var(--accent-2)'"></div></div>
+              <div class="progress" style="margin-top:0"><div :style="'width:'+run.setPct+'%; background:var(--accent-2)'+(run.setPct===0?';transition:none':'')"></div></div>
             </div>
           </template>
 
@@ -551,7 +556,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.6.0',
+    version: '1.7.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
