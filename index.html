@@ -100,15 +100,18 @@
   .runner .stage { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
   .runner .phase-name { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
   .runner .time-circle {
+    position: relative;
     width: min(78vw, 360px); aspect-ratio: 1; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     margin: 14px auto 18px; background: var(--surface-2);
     transition: background-color .25s linear;
   }
-  .runner .time { font-size: clamp(56px, 18vw, 96px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; transition: color .25s linear; }
+  .runner .ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; }
+  .runner .ring-track { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 2.6; }
+  .runner .ring-overall { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset .25s linear, stroke .25s linear; }
+  .runner .ring-set { fill: none; stroke-width: 2.2; opacity: .85; transition: r .25s linear, stroke .25s linear; }
+  .runner .time { position: relative; z-index: 1; font-size: clamp(56px, 18vw, 96px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; transition: color .25s linear; }
   .runner .upnext { color: var(--muted); font-size: 14px; margin-top: 4px; min-height: 20px; }
-  .runner .progress { width: 100%; max-width: 420px; height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 22px; }
-  .runner .progress > div { height: 100%; background: var(--accent); transition: width .25s linear; }
   .runner .controls { display: flex; gap: 12px; margin-top: 26px; }
   .runner .done-screen .big { font-size: 40px; font-weight: 800; }
 
@@ -506,18 +509,16 @@
           <div class="stage" x-text="run.contextLabel"></div>
           <div class="phase-name" x-text="run.phaseName"></div>
           <div class="time-circle" :style="circleStyle()">
+            <svg class="ring-svg" viewBox="0 0 100 100">
+              <circle class="ring-track" cx="50" cy="50" r="47"></circle>
+              <circle class="ring-overall" cx="50" cy="50" r="47" :style="overallRingStyle()"></circle>
+              <circle class="ring-set" cx="50" cy="50" :r="setRingRadius()" :style="setRingStyle()" x-show="run.totalSets>1"></circle>
+            </svg>
             <div class="time" :style="'color:'+contrastColor(run.steps[run.idx].color)+';transition-duration:'+colorAnimMs()+'ms'" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
           </div>
           <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
-          <div class="progress"><div :style="'width:'+run.pct+'%'+(run.pct===0?';transition:none':'')"></div></div>
           <template x-if="run.totalSets > 1">
-            <div style="width:100%;max-width:420px">
-              <div style="display:flex;justify-content:space-between;margin-top:12px;margin-bottom:4px">
-                <span class="muted" style="font-size:11px">Sets</span>
-                <span class="muted" style="font-size:11px" x-text="run.setNum+' / '+run.totalSets"></span>
-              </div>
-              <div class="progress" style="margin-top:0"><div :style="'width:'+run.setPct+'%; background:var(--accent-2)'+(run.setPct===0?';transition:none':'')"></div></div>
-            </div>
+            <div class="muted" style="font-size:11px;margin-top:10px" x-text="'Set '+run.setNum+' / '+run.totalSets"></div>
           </template>
 
           <!-- before first start: big Start button -->
@@ -556,7 +557,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.8.0',
+    version: '1.9.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -626,6 +627,52 @@ function app(){
       const r=parseInt(hex.substr(1,2),16), g=parseInt(hex.substr(3,2),16), b=parseInt(hex.substr(5,2),16);
       const L=(0.299*r+0.587*g+0.114*b)/255;
       return L>0.6 ? '#0b0e14' : '#ffffff';
+    },
+    hexToHsl(hex){
+      const r=parseInt(hex.substr(1,2),16)/255, g=parseInt(hex.substr(3,2),16)/255, b=parseInt(hex.substr(5,2),16)/255;
+      const max=Math.max(r,g,b), min=Math.min(r,g,b);
+      let h=0, s=0; const l=(max+min)/2;
+      if(max!==min){
+        const d=max-min;
+        s = l>0.5 ? d/(2-max-min) : d/(max+min);
+        switch(max){
+          case r: h=(g-b)/d+(g<b?6:0); break;
+          case g: h=(b-r)/d+2; break;
+          default: h=(r-g)/d+4;
+        }
+        h*=60;
+      }
+      return {h,s:s*100,l:l*100};
+    },
+    // Neon accent for the progress rings: a hue-rotated, high-saturation pop
+    // that reads against whatever the phase's background color is. Plain
+    // white when no phase color is set.
+    neonAccent(hex){
+      if(!hex || hex.length<7) return '#ffffff';
+      const {h,l}=this.hexToHsl(hex);
+      const hue=(h+180)%360;
+      const light = l>55 ? 42 : 68;
+      return 'hsl('+hue.toFixed(0)+',95%,'+light+'%)';
+    },
+    // Overall progress: a ring traced along the background circle's edge.
+    overallRingStyle(){
+      const c=2*Math.PI*47;
+      const pct=this.run.pct||0;
+      const offset=c-(pct/100)*c;
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const color=this.neonAccent(cur && cur.color);
+      return 'stroke:'+color+';stroke-dasharray:'+c+';stroke-dashoffset:'+offset+(pct===0?';transition:none':'');
+    },
+    // Set progress: a circle stroke growing from the center out to the circle's edge.
+    setRingRadius(){
+      const pct=this.run.setPct||0;
+      return (pct/100*44).toFixed(2);
+    },
+    setRingStyle(){
+      const pct=this.run.setPct||0;
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const color=this.neonAccent(cur && cur.color);
+      return 'stroke:'+color+(pct===0?';transition:none':'');
     },
 
     // ---------- timer logic ----------
