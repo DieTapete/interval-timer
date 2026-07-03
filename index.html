@@ -560,7 +560,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.9.1',
+    version: '1.9.2',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -660,19 +660,19 @@ function app(){
     // Overall progress: a ring traced along the background circle's edge.
     overallRingStyle(){
       const c=2*Math.PI*47;
-      const pct=this.run.pct||0;
+      const pct=this.run.setPct||0;
       const offset=c-(pct/100)*c;
       const cur=this.run.steps && this.run.steps[this.run.idx];
       const color=this.neonAccent(cur && cur.color);
       return 'stroke:'+color+';stroke-dasharray:'+c+';stroke-dashoffset:'+offset+(pct===0?';transition:none':'');
     },
-    // Set progress: a circle stroke growing from the center out to the circle's edge.
+    // Current-set progress: a circle stroke growing from the center out to the circle's edge.
     setRingRadius(){
-      const pct=this.run.setPct||0;
+      const pct=this.run.curSetPct||0;
       return (pct/100*44).toFixed(2);
     },
     setRingStyle(){
-      const pct=this.run.setPct||0;
+      const pct=this.run.curSetPct||0;
       const cur=this.run.steps && this.run.steps[this.run.idx];
       const color=this.neonAccent(cur && cur.color);
       return 'stroke:'+color+(pct===0?';transition:none':'');
@@ -743,7 +743,7 @@ function app(){
         active:true, finished:false, paused:true, returnTo:'app',
         steps, idx:0, remaining:steps[0].seconds,
         kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
         setNum:0, totalSets,
         label: timer.name, logOnFinish:true, programId:null, exIndex:null
       };
@@ -788,7 +788,7 @@ function app(){
         active:true, finished:false, paused:true, returnTo:'session',
         steps, idx:0, remaining:steps[0].seconds,
         kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
         setNum:0, totalSets,
         label: t.name, logOnFinish:false, programId:this.session.programId, exIndex:i
       };
@@ -819,6 +819,9 @@ function app(){
         if(sn>0 && pps>0 && ts>0){
           this.run.setPct=Math.min(100,((sn-1)*pps+pip+(1-this.run.remaining/cur.seconds))/(ts*pps)*100);
         }
+        if(sn>0 && pps>0){
+          this.run.curSetPct=Math.min(100,(pip+(1-this.run.remaining/cur.seconds))/pps*100);
+        }
         if(this.run.remaining<=3.999 && Math.ceil(this.run.remaining)!==Math.ceil(this.run.remaining+dt) && this.run.remaining>0){
           this.beep(660,0.07);
         }
@@ -834,6 +837,7 @@ function app(){
       this.run.setNum=cur.setNum||0;
       const sn=cur.setNum, pps=cur.phasesPerSet, ts=this.run.totalSets;
       this.run.setPct=(sn>0&&pps>0&&ts>0) ? ((sn-1)*pps+cur.phaseInSet)/(ts*pps)*100 : 0;
+      this.run.curSetPct=(sn>0&&pps>0) ? (cur.phaseInSet/pps*100) : 0;
       this.run.upNext=this.run.steps[this.run.idx+1]?this.run.steps[this.run.idx+1].name:'';
       this.beep(cur.kind==='rest'?440:880,0.12);
       this.vibrate(cur.kind);
