@@ -564,7 +564,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.10.0',
+    version: '1.11.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
@@ -575,10 +575,12 @@ function app(){
     run: { active:false },
     session: null,        // persistent in-progress program
     showSession: false,   // whether the program-run screen is open
-    _tick:null, _audioCtx:null,
+    _tick:null, _audioCtx:null, _wakeLock:null,
 
     // ---------- persistence ----------
     init(){
+      // wake locks are dropped when the page is hidden; re-acquire on return
+      document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') this._syncWakeLock(); });
       this.timers = this.load('it_timers', []);
       // migrate old format: per-phase sets -> timer-level sets
       let changed=false;
@@ -820,6 +822,20 @@ function app(){
     abandonSession(){ this.session=null; this.saveSession(); this.showSession=false; this.confirmId=null; },
 
     // ---------- interval ticking ----------
+    // keep the screen on while a timer is actively running
+    async _syncWakeLock(){
+      const want=!!(this.run && this.run.active && !this.run.paused && !this.run.finished);
+      try{
+        if(want && !this._wakeLock && 'wakeLock' in navigator && document.visibilityState==='visible'){
+          const lock=await navigator.wakeLock.request('screen');
+          this._wakeLock=lock;
+          lock.addEventListener('release',()=>{ if(this._wakeLock===lock) this._wakeLock=null; });
+          if(!(this.run && this.run.active && !this.run.paused && !this.run.finished)) this._syncWakeLock();
+        } else if(!want && this._wakeLock){
+          const l=this._wakeLock; this._wakeLock=null; await l.release();
+        }
+      }catch(e){ /* unsupported or denied: ignore */ }
+    },
     _startTick(){
       clearInterval(this._tick);
       let last=performance.now();
@@ -860,7 +876,7 @@ function app(){
       clearInterval(this._tick);
       this.beep(990,0.18); setTimeout(()=>this.beep(1320,0.22),180);
       this.vibrate('finish');
-      this.run.finished=true;
+      this.run.finished=true; this._syncWakeLock();
       if(this.run.logOnFinish){
         this.log.push({ ts:Date.now(), programId:null, name:this.run.label, date:this._dateKey(new Date()) });
         this.save();
@@ -872,23 +888,23 @@ function app(){
       }
     },
     startRunFromPrep(){ // user presses the big start; un-pause and beep
-      this.run.paused=false; this.beep(880,0.12); this.vibrate('work');
+      this.run.paused=false; this.beep(880,0.12); this.vibrate('work'); this._syncWakeLock();
     },
-    togglePause(){ this.run.paused=!this.run.paused; },
+    togglePause(){ this.run.paused=!this.run.paused; this._syncWakeLock(); },
     skipPhase(){ this.run.remaining=0; },
     // leave the interval overlay back to where we came from (session keeps progress, but
     // the current in-progress exercise is NOT marked done)
     exitRun(){
       clearInterval(this._tick);
       const back=this.run.returnTo;
-      this.run={active:false};
+      this.run={active:false}; this._syncWakeLock();
       if(back==='session'){ this.showSession=true; }
     },
     // called from the "Done" button on the finished screen
     closeRun(){
       clearInterval(this._tick);
       const back=this.run.returnTo;
-      this.run={active:false};
+      this.run={active:false}; this._syncWakeLock();
       if(back==='session'){ this.showSession=true; }
     },
 
