@@ -65,7 +65,10 @@
     width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
     padding: 9px 11px; border-radius: 10px; font-size: 14px; outline: none;
   }
-  input:focus, select:focus { border-color: var(--accent); }
+  textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 11px; border-radius: 10px; outline: none; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); margin: 0; cursor: pointer; }
+  .check input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
   input[type=color] { padding: 3px; height: 38px; cursor: pointer; }
 
   button.btn {
@@ -146,6 +149,18 @@
 
   .timer-chip { display:flex; align-items:center; gap:8px; background: var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-top:8px; }
   .timer-chip .grab { cursor:default; }
+  .timer-chip .num { min-width: 22px; color: var(--muted); font-weight: 700; }
+  .chip-btns { display: flex; gap: 6px; }
+  @media (max-width: 560px){
+    /* 16px stops iOS from zooming on focus; bigger tap targets in the editors */
+    input, select, textarea { font-size: 16px; }
+    .timer-chip { flex-wrap: wrap; }
+    .timer-chip .grow { flex-basis: calc(100% - 40px); }
+    .chip-btns { width: 100%; justify-content: flex-end; }
+    .chip-btns .btn, .subtabs button { min-height: 40px; min-width: 44px; }
+    .editor-actions .btn { flex: 1; padding: 12px; }
+    textarea.code { font-size: 15px; }
+  }
   details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   hr.sep { border:0; border-top:1px solid var(--border); margin:14px 0; }
 
@@ -245,7 +260,7 @@
           Total (<span x-text="tForm.sets||1"></span> sets): <strong x-text="fmt(timerDuration(tForm))"></strong>
         </div>
 
-        <div class="row" style="margin-top:14px">
+        <div class="row editor-actions" style="margin-top:14px">
           <button class="btn primary" @click="saveTimer()">Save timer</button>
           <button class="btn ghost" x-show="editingTimer" @click="resetTimerForm()">Cancel</button>
         </div>
@@ -305,14 +320,16 @@
         <template x-if="pForm.timerIds.length===0"><div class="muted" style="margin-top:10px">No timers added yet.</div></template>
         <template x-for="(tid, idx) in pForm.timerIds" :key="idx">
           <div class="timer-chip">
-            <span x-text="(idx+1)+'.'"></span>
+            <span class="num" x-text="(idx+1)+'.'"></span>
             <div class="grow" style="min-width:0">
               <input x-model="pForm.labels[idx]" :placeholder="timerName(tid)" style="padding:6px 9px">
-              <div class="muted" style="font-size:11px;margin-top:2px" x-show="pForm.labels[idx]" x-text="timerName(tid)"></div>
+              <div class="muted" style="font-size:11px;margin-top:2px" x-text="(pForm.labels[idx] ? timerName(tid)+' · ' : '')+fmt(timerDurationById(tid))"></div>
             </div>
-            <button class="btn sm icon" @click="moveTimer(idx,-1)" :disabled="idx===0">↑</button>
-            <button class="btn sm icon" @click="moveTimer(idx,1)" :disabled="idx===pForm.timerIds.length-1">↓</button>
-            <button class="btn danger sm icon" @click="removeTimerFromProgram(idx)">✕</button>
+            <div class="chip-btns">
+              <button class="btn sm icon" @click="moveTimer(idx,-1)" :disabled="idx===0" aria-label="Move up">↑</button>
+              <button class="btn sm icon" @click="moveTimer(idx,1)" :disabled="idx===pForm.timerIds.length-1" aria-label="Move down">↓</button>
+              <button class="btn danger sm icon" @click="removeTimerFromProgram(idx)" aria-label="Remove">✕</button>
+            </div>
           </div>
         </template>
 
@@ -324,11 +341,18 @@
           <div style="color:var(--danger);margin-top:8px;white-space:pre-line" x-show="pErrors.length" x-text="pErrors.join('\n')"></div>
         </div></template>
 
-        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.timerIds.length">
-          Total program: <strong x-text="fmt(programDuration(pForm.timerIds))"></strong>
+        <hr class="sep">
+        <label class="check"><input type="checkbox" x-model="pForm.continuous"> Run continuously (no stop between timers)</label>
+        <div x-show="pForm.continuous" style="margin-top:10px">
+          <label>Break between timers (seconds, 0 = none)</label>
+          <input type="number" inputmode="numeric" min="0" step="5" x-model.number="pForm.breakSeconds" style="max-width:140px">
         </div>
 
-        <div class="row" style="margin-top:14px">
+        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.timerIds.length">
+          Total program: <strong x-text="fmt(programDuration(pForm.timerIds, pForm.continuous ? pForm.breakSeconds : 0))"></strong>
+        </div>
+
+        <div class="row editor-actions" style="margin-top:14px">
           <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.timerIds.length : !pCode.trim())">Save program</button>
           <button class="btn ghost" x-show="editingProgram" @click="resetProgramForm()">Cancel</button>
         </div>
@@ -343,7 +367,8 @@
               <div class="name" x-text="p.name"></div>
               <div class="sub">
                 <span x-text="p.timerIds.length+' timers'"></span> ·
-                <span x-text="fmt(programDuration(p.timerIds))"></span> ·
+                <span x-text="fmt(programDuration(p.timerIds, p.continuous ? p.breakSeconds : 0))"></span> ·
+                <span x-show="p.continuous">continuous ·</span>
                 <span x-text="completionCount(p.id)+'× done'"></span>
               </div>
             </div>
@@ -487,7 +512,11 @@
           <span class="muted" x-text="sessionDoneCount()+' / '+session.timerIds.length"></span>
         </div>
         <h2 class="session-title" x-text="session.name"></h2>
-        <div class="muted" style="margin-bottom:10px">Start each exercise when you're ready.</div>
+        <div class="muted" style="margin-bottom:10px" x-show="!session.continuous">Start each exercise when you're ready.</div>
+        <template x-if="session.continuous && !sessionAllDone()">
+          <button class="btn green" style="width:100%;padding:14px;font-size:15px;margin:4px 0 6px" @click="startContinuous()"
+            x-text="sessionDoneCount() ? '▶ Continue from next exercise' : '▶ Run whole program'"></button>
+        </template>
 
         <template x-for="(t, i) in sessionTimers()" :key="i">
           <div class="ex-item" :class="{done: session.exDone[i]}">
@@ -581,13 +610,13 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.13.0',
+    version: '1.14.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
     editingTimer: null, editingProgram: null, confirmId: null, calDetail: null,
     tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
-    pForm: { name:'', timerIds:[], labels:[], pick:'' },
+    pForm: { name:'', timerIds:[], labels:[], pick:'', continuous:false, breakSeconds:0 },
     pMode: 'visual', pCode: '', pErrors: [],
 
     run: { active:false },
@@ -705,7 +734,8 @@ function app(){
     // ---------- timer logic ----------
     roundDuration(t){ return (t.phases||[]).reduce((a,p)=>a+(p.seconds||0),0) },
     timerDuration(t){ return this.roundDuration(t)*Math.max(1,t.sets||1) },
-    programDuration(ids){ return ids.reduce((a,id)=>{const t=this.timers.find(x=>x.id===id);return a+(t?this.timerDuration(t):0)},0) },
+    timerDurationById(id){ const t=this.timers.find(x=>x.id===id); return t?this.timerDuration(t):0 },
+    programDuration(ids,breakSec){ const valid=ids.filter(id=>this.timers.find(x=>x.id===id)); return valid.reduce((a,id)=>a+this.timerDurationById(id),0)+Math.max(0,valid.length-1)*Math.max(0,+breakSec||0) },
     timerName(id){ const t=this.timers.find(x=>x.id===id); return t?t.name:'(deleted)' },
     // per-program label overrides the timer's own name; labels[] is parallel to timerIds[]
     entryName(id,label){ return (label&&label.trim()) || this.timerName(id) },
@@ -792,22 +822,23 @@ function app(){
     },
     saveProgram(){
       if(this.pMode==='code' && !this.applyProgramCode()) return;
-      const clean={ name:this.pForm.name.trim(), timerIds:[...this.pForm.timerIds], labels:this.pForm.timerIds.map((_,i)=>(this.pForm.labels[i]||'').trim()) };
+      const clean={ name:this.pForm.name.trim(), timerIds:[...this.pForm.timerIds], labels:this.pForm.timerIds.map((_,i)=>(this.pForm.labels[i]||'').trim()),
+        continuous:!!this.pForm.continuous, breakSeconds:this.pForm.continuous?Math.max(0,Math.round(+this.pForm.breakSeconds||0)):0 };
       if(!clean.name||!clean.timerIds.length)return;
       if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
       else { clean.id=this.uid(); this.programs.push(clean); }
       this.save(); this.resetProgramForm();
     },
-    editProgram(p){ this.pMode='visual'; this.pErrors=[]; this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],labels:p.timerIds.map((_,i)=>(p.labels&&p.labels[i])||''),pick:''}; window.scrollTo({top:0,behavior:'smooth'}); },
+    editProgram(p){ this.pMode='visual'; this.pErrors=[]; this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],labels:p.timerIds.map((_,i)=>(p.labels&&p.labels[i])||''),pick:'',continuous:!!p.continuous,breakSeconds:p.breakSeconds||0}; window.scrollTo({top:0,behavior:'smooth'}); },
     deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
-    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:''}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; },
+    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:'',continuous:false,breakSeconds:0}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; },
 
     // ---------- build run steps (single exercise/timer) ----------
     buildSteps(timer,displayName){
       const title=displayName||timer.name;
       const sets=Math.max(1,timer.sets||1);
       const pps=timer.phases.length;
-      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting',setNum:0,phaseInSet:0,phasesPerSet:pps,color:''}];
+      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting',setNum:0,phaseInSet:0,phasesPerSet:pps,totalSets:sets,color:''}];
       for(let s=1;s<=sets;s++){
         timer.phases.forEach((ph,i)=>{
           const isRest=/rest|pause|break/i.test(ph.name);
@@ -819,6 +850,7 @@ function app(){
             setNum: s,
             phaseInSet: i,
             phasesPerSet: pps,
+            totalSets: sets,
             color: ph.color||''
           });
         });
@@ -854,10 +886,12 @@ function app(){
         timerIds:keep.map(e=>e.id),
         labels:keep.map(e=>e.label),
         exDone:keep.map(()=>false),
+        continuous:!!p.continuous, breakSeconds:p.breakSeconds||0,
         startedTs: Date.now(), lastExerciseTs: null
       };
       this.saveSession();
       this.showSession=true;
+      if(this.session.continuous) this.startContinuous();
     },
     resumeSession(){ this.showSession=true; },
     minimizeSession(){ this.showSession=false; },   // back to main app, session kept
@@ -885,6 +919,35 @@ function app(){
         upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
         setNum:0, totalSets,
         label: name, logOnFinish:false, programId:this.session.programId, exIndex:i
+      };
+      this._startTick();
+    },
+
+    // Runs every not-yet-done exercise back to back, with optional breaks in between.
+    // Each exercise is marked done as soon as its last step completes.
+    startContinuous(){
+      const todo=this.session.timerIds.map((id,i)=>i).filter(i=>!this.session.exDone[i] && this.timers.find(t=>t.id===this.session.timerIds[i]));
+      if(!todo.length) return;
+      const brk=this.session.breakSeconds||0;
+      const steps=[];
+      todo.forEach((i,k)=>{
+        const t=this.timers.find(x=>x.id===this.session.timerIds[i]);
+        const name=this.entryName(t.id,this.session.labels&&this.session.labels[i]);
+        const ex=this.buildSteps(t,name).slice(k===0?0:1).map(st=>({...st,exIndex:i}));
+        ex[ex.length-1].lastOfEx=true;
+        if(k>0 && brk>0){
+          steps.push({name:'Break',seconds:brk,kind:'rest',ctx:'Up next: '+name,setNum:0,phaseInSet:0,phasesPerSet:0,totalSets:1,color:''});
+        }
+        steps.push(...ex);
+      });
+      const first=this.session.timerIds[todo[0]], t0=this.timers.find(x=>x.id===first);
+      this.run={
+        active:true, finished:false, paused:true, returnTo:'session',
+        steps, idx:0, remaining:steps[0].seconds,
+        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
+        setNum:0, totalSets:Math.max(1,t0.sets||1),
+        label: this.session.name, logOnFinish:false, programId:this.session.programId, exIndex:null
       };
       this._startTick();
     },
@@ -937,12 +1000,17 @@ function app(){
       },50);
     },
     _advance(){
+      const done=this.run.steps[this.run.idx];
+      if(done && done.lastOfEx && this.session && this.run.returnTo==='session'){
+        this.session.exDone[done.exIndex]=true; this.session.lastExerciseTs=Date.now(); this.saveSession();
+      }
+      if(this.run.idx+1>=this.run.steps.length){ this._finishRun(); return; }
       this.run.idx++;
-      if(this.run.idx>=this.run.steps.length){ this._finishRun(); return; }
       const cur=this.run.steps[this.run.idx];
       this.run.remaining=cur.seconds; this.run.kind=cur.kind;
       this.run.phaseName=cur.name; this.run.contextLabel=cur.ctx; this.run.pct=0;
       this.run.setNum=cur.setNum||0;
+      if(cur.totalSets) this.run.totalSets=cur.totalSets;
       const sn=cur.setNum, pps=cur.phasesPerSet, ts=this.run.totalSets;
       this.run.setPct=(sn>0&&pps>0&&ts>0) ? ((sn-1)*pps+cur.phaseInSet)/(ts*pps)*100 : 0;
       this.run.curSetPct=(sn>0&&pps>0) ? (cur.phaseInSet/pps*100) : 0;
