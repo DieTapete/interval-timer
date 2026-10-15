@@ -282,6 +282,11 @@
         <input x-model="pForm.name" placeholder="e.g. Morning Routine">
 
         <hr class="sep">
+        <label>Add from text (one entry per line, e.g. “Triceps Left 30s”, “Switch 10s”, “Plank 1m”)</label>
+        <textarea x-model="pText" rows="4" placeholder="Shoulder Stretch 60s&#10;Switch 10s&#10;Triceps Left 30s" style="width:100%"></textarea>
+        <button class="btn sm" style="margin-top:8px" @click="addTextToProgram()" :disabled="!pText.trim()">Add lines to program</button>
+
+        <hr class="sep">
         <label>Add timers to this program</label>
         <div class="row">
           <select class="grow" x-model="pForm.pick">
@@ -564,13 +569,14 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.11.0',
+    version: '1.12.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
     editingTimer: null, editingProgram: null, confirmId: null, calDetail: null,
     tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
     pForm: { name:'', timerIds:[], labels:[], pick:'' },
+    pText: '',
 
     run: { active:false },
     session: null,        // persistent in-progress program
@@ -708,6 +714,27 @@ function app(){
 
     // ---------- program logic ----------
     addTimerToProgram(){ if(this.pForm.pick){ this.pForm.timerIds.push(this.pForm.pick); this.pForm.labels.push(''); this.pForm.pick=''; } },
+    // "Name 30s" / "Name 1m" / "Name 1m30s" -> {name, seconds}; null if the line doesn't parse
+    parseTextLine(line){
+      const m=line.trim().match(/^(.*?)[\s:,\-–]*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?)?\s*(?:(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?)?$/i);
+      if(!m) return null;
+      const seconds=(m[2]?+m[2]*60:0)+(m[3]?+m[3]:0);
+      const name=m[1].trim();
+      return (name && seconds>0) ? {name,seconds} : null;
+    },
+    // Parses pText, reusing an identical saved timer (same name, 1 set, 1 phase, same length) or creating one.
+    addTextToProgram(){
+      const lines=this.pText.split('\n').map(l=>l.trim()).filter(Boolean);
+      const parsed=lines.map(l=>({l,p:this.parseTextLine(l)}));
+      const bad=parsed.filter(x=>!x.p).map(x=>x.l);
+      if(bad.length){ alert('Could not read these lines (expected "Name 30s"):\n\n'+bad.join('\n')); return; }
+      parsed.forEach(({p})=>{
+        let t=this.timers.find(x=>x.name===p.name && (x.sets||1)===1 && x.phases.length===1 && x.phases[0].seconds===p.seconds);
+        if(!t){ t={id:this.uid(),name:p.name,sets:1,phases:[{name:p.name,seconds:p.seconds,color:''}]}; this.timers.push(t); }
+        this.pForm.timerIds.push(t.id); this.pForm.labels.push('');
+      });
+      this.pText=''; this.save();
+    },
     removeTimerFromProgram(i){ this.pForm.timerIds.splice(i,1); this.pForm.labels.splice(i,1); },
     moveTimer(i,dir){
       const j=i+dir; if(j<0||j>=this.pForm.timerIds.length)return;
@@ -722,7 +749,7 @@ function app(){
     },
     editProgram(p){ this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],labels:p.timerIds.map((_,i)=>(p.labels&&p.labels[i])||''),pick:''}; window.scrollTo({top:0,behavior:'smooth'}); },
     deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
-    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:''}; },
+    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:''}; this.pText=''; },
 
     // ---------- build run steps (single exercise/timer) ----------
     buildSteps(timer,displayName){
