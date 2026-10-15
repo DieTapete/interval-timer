@@ -45,6 +45,10 @@
     padding: 9px 10px; border-radius: 9px; font-size: 13px; font-weight: 600;
     cursor: pointer; transition: .15s;
   }
+  .subtabs { display: flex; gap: 6px; background: var(--bg); padding: 4px; border-radius: 10px; margin: 12px 0; }
+  .subtabs button { flex: 1; background: transparent; border: 0; color: var(--muted); padding: 8px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+  .subtabs button.active { background: var(--surface-2); color: var(--text); }
+  textarea.code { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; line-height: 1.5; white-space: pre; }
   nav button.active { background: var(--surface-2); color: var(--text); }
   nav button:hover:not(.active) { color: var(--text); }
 
@@ -281,12 +285,12 @@
         <label>Program name</label>
         <input x-model="pForm.name" placeholder="e.g. Morning Routine">
 
-        <hr class="sep">
-        <label>Add from text (one entry per line, e.g. “Triceps Left 30s”, “Switch 10s”, “Plank 1m”)</label>
-        <textarea x-model="pText" rows="4" placeholder="Shoulder Stretch 60s&#10;Switch 10s&#10;Triceps Left 30s" style="width:100%"></textarea>
-        <button class="btn sm" style="margin-top:8px" @click="addTextToProgram()" :disabled="!pText.trim()">Add lines to program</button>
+        <div class="subtabs">
+          <button :class="{active:pMode==='visual'}" @click="setPMode('visual')">Visual</button>
+          <button :class="{active:pMode==='code'}" @click="setPMode('code')">Code</button>
+        </div>
 
-        <hr class="sep">
+        <template x-if="pMode==='visual'"><div>
         <label>Add timers to this program</label>
         <div class="row">
           <select class="grow" x-model="pForm.pick">
@@ -312,12 +316,20 @@
           </div>
         </template>
 
-        <div class="muted" style="margin-top:12px" x-show="pForm.timerIds.length">
+        </div></template>
+
+        <template x-if="pMode==='code'"><div>
+          <label>One entry per line: <code>Name 30s</code>, <code>Plank 1m30s</code>. Use <code>@Timer name</code> (optionally <code>| Label</code>) for multi-phase timers. Lines starting with # are ignored.</label>
+          <textarea class="code" x-model="pCode" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Shoulder Stretch 60s&#10;Switch 10s&#10;Triceps Left 30s"></textarea>
+          <div style="color:var(--danger);margin-top:8px;white-space:pre-line" x-show="pErrors.length" x-text="pErrors.join('\n')"></div>
+        </div></template>
+
+        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.timerIds.length">
           Total program: <strong x-text="fmt(programDuration(pForm.timerIds))"></strong>
         </div>
 
         <div class="row" style="margin-top:14px">
-          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || !pForm.timerIds.length">Save program</button>
+          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.timerIds.length : !pCode.trim())">Save program</button>
           <button class="btn ghost" x-show="editingProgram" @click="resetProgramForm()">Cancel</button>
         </div>
       </div>
@@ -569,14 +581,14 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.12.0',
+    version: '1.13.0',
     timers: [], programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
     editingTimer: null, editingProgram: null, confirmId: null, calDetail: null,
     tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
     pForm: { name:'', timerIds:[], labels:[], pick:'' },
-    pText: '',
+    pMode: 'visual', pCode: '', pErrors: [],
 
     run: { active:false },
     session: null,        // persistent in-progress program
@@ -722,18 +734,56 @@ function app(){
       const name=m[1].trim();
       return (name && seconds>0) ? {name,seconds} : null;
     },
-    // Parses pText, reusing an identical saved timer (same name, 1 set, 1 phase, same length) or creating one.
-    addTextToProgram(){
-      const lines=this.pText.split('\n').map(l=>l.trim()).filter(Boolean);
-      const parsed=lines.map(l=>({l,p:this.parseTextLine(l)}));
-      const bad=parsed.filter(x=>!x.p).map(x=>x.l);
-      if(bad.length){ alert('Could not read these lines (expected "Name 30s"):\n\n'+bad.join('\n')); return; }
-      parsed.forEach(({p})=>{
-        let t=this.timers.find(x=>x.name===p.name && (x.sets||1)===1 && x.phases.length===1 && x.phases[0].seconds===p.seconds);
-        if(!t){ t={id:this.uid(),name:p.name,sets:1,phases:[{name:p.name,seconds:p.seconds,color:''}]}; this.timers.push(t); }
-        this.pForm.timerIds.push(t.id); this.pForm.labels.push('');
+    // Program <-> text. Simple timers (1 set, 1 phase) are "Label 30s"; others are "@Timer name | Label".
+    isSimpleTimer(t){ return (t.sets||1)===1 && t.phases.length===1; },
+    fmtCompact(sec){ const m=Math.floor(sec/60), r=sec%60; return (m?m+'m':'')+(r||!m?r+'s':''); },
+    programToCode(){
+      return this.pForm.timerIds.map((id,i)=>{
+        const t=this.timers.find(x=>x.id===id); if(!t) return '# (missing timer)';
+        const label=(this.pForm.labels[i]||'').trim();
+        if(this.isSimpleTimer(t)) return (label||t.name)+' '+this.fmtCompact(t.phases[0].seconds);
+        return '@'+t.name+(label?' | '+label:'');
+      }).join('\n');
+    },
+    // Parses code into {ids, labels, newTimers, errors}; does not touch state.
+    parseProgramCode(code){
+      const ids=[], labels=[], newTimers=[], errors=[];
+      const known={}; // "text|seconds" -> {id,label} from entries already in the form
+      this.pForm.timerIds.forEach((id,i)=>{
+        const t=this.timers.find(x=>x.id===id);
+        if(t && this.isSimpleTimer(t)){ const l=(this.pForm.labels[i]||'').trim(); known[(l||t.name)+'|'+t.phases[0].seconds]={id,label:l}; }
       });
-      this.pText=''; this.save();
+      code.split('\n').forEach((raw,n)=>{
+        const line=raw.trim(); if(!line||line.startsWith('#')) return;
+        if(line.startsWith('@')){
+          const [nm,...rest]=line.slice(1).split('|');
+          const t=this.timers.find(x=>x.name.toLowerCase()===nm.trim().toLowerCase());
+          if(!t){ errors.push('Line '+(n+1)+': no timer named "'+nm.trim()+'"'); return; }
+          ids.push(t.id); labels.push(rest.join('|').trim()); return;
+        }
+        const p=this.parseTextLine(line);
+        if(!p){ errors.push('Line '+(n+1)+': expected "Name 30s" — '+line); return; }
+        const k=known[p.name+'|'+p.seconds];
+        if(k){ ids.push(k.id); labels.push(k.label); return; }
+        let t=[...this.timers,...newTimers].find(x=>x.name===p.name && this.isSimpleTimer(x) && x.phases[0].seconds===p.seconds);
+        if(!t){ t={id:this.uid(),name:p.name,sets:1,phases:[{name:p.name,seconds:p.seconds,color:''}]}; newTimers.push(t); }
+        ids.push(t.id); labels.push('');
+      });
+      return {ids,labels,newTimers,errors};
+    },
+    // Applies pCode to pForm (creating timers as needed). Returns false on parse errors.
+    applyProgramCode(){
+      const r=this.parseProgramCode(this.pCode);
+      this.pErrors=r.errors;
+      if(r.errors.length) return false;
+      if(r.newTimers.length){ this.timers.push(...r.newTimers); this.save(); }
+      this.pForm.timerIds=r.ids; this.pForm.labels=r.labels;
+      return true;
+    },
+    setPMode(mode){
+      if(mode===this.pMode) return;
+      if(mode==='code'){ this.pCode=this.programToCode(); this.pErrors=[]; this.pMode='code'; }
+      else if(this.applyProgramCode()) this.pMode='visual';
     },
     removeTimerFromProgram(i){ this.pForm.timerIds.splice(i,1); this.pForm.labels.splice(i,1); },
     moveTimer(i,dir){
@@ -741,15 +791,16 @@ function app(){
       for(const a of [this.pForm.timerIds,this.pForm.labels]) [a[i],a[j]]=[a[j],a[i]];
     },
     saveProgram(){
+      if(this.pMode==='code' && !this.applyProgramCode()) return;
       const clean={ name:this.pForm.name.trim(), timerIds:[...this.pForm.timerIds], labels:this.pForm.timerIds.map((_,i)=>(this.pForm.labels[i]||'').trim()) };
       if(!clean.name||!clean.timerIds.length)return;
       if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
       else { clean.id=this.uid(); this.programs.push(clean); }
       this.save(); this.resetProgramForm();
     },
-    editProgram(p){ this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],labels:p.timerIds.map((_,i)=>(p.labels&&p.labels[i])||''),pick:''}; window.scrollTo({top:0,behavior:'smooth'}); },
+    editProgram(p){ this.pMode='visual'; this.pErrors=[]; this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],labels:p.timerIds.map((_,i)=>(p.labels&&p.labels[i])||''),pick:''}; window.scrollTo({top:0,behavior:'smooth'}); },
     deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
-    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:''}; this.pText=''; },
+    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:''}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; },
 
     // ---------- build run steps (single exercise/timer) ----------
     buildSteps(timer,displayName){
