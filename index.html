@@ -597,15 +597,22 @@ function app(){
       p.entries=this.legacyEntries(p.timerIds,p.labels,timers);
       delete p.timerIds; delete p.labels; return true;
     },
-    load(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+    // A copy served under /preview/ keeps its own storage (seeded from the live app's) so trying it can't touch real data.
+    _key(k){ return location.pathname.includes('/preview/') ? 'preview_'+k : k },
+    load(k,d){
+      try{
+        const own=localStorage.getItem(this._key(k));
+        return JSON.parse(own!==null ? own : localStorage.getItem(k)) ?? d;
+      }catch(e){ return d }
+    },
     save(){
-      localStorage.setItem('it_timers', JSON.stringify(this.timers));
-      localStorage.setItem('it_programs', JSON.stringify(this.programs));
-      localStorage.setItem('it_log', JSON.stringify(this.log));
+      localStorage.setItem(this._key('it_timers'), JSON.stringify(this.timers));
+      localStorage.setItem(this._key('it_programs'), JSON.stringify(this.programs));
+      localStorage.setItem(this._key('it_log'), JSON.stringify(this.log));
     },
     saveSession(){
-      if(this.session) localStorage.setItem('it_session', JSON.stringify(this.session));
-      else localStorage.removeItem('it_session');
+      if(this.session) localStorage.setItem(this._key('it_session'), JSON.stringify(this.session));
+      else localStorage.setItem(this._key('it_session'),'null');
     },
     uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) },
 
