@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Interval Timer</title>
+<link rel="manifest" href="../manifest.json">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Interval">
+<link rel="apple-touch-icon" href="../icon.svg">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #1a1d24;
+    --surface-2: #242833;
+    --border: #2e333f;
+    --text: #e6e8ec;
+    --muted: #8b90a0;
+    --accent: #4f8cff;
+    --accent-2: #38d39f;
+    --warn: #ffb02e;
+    --danger: #ff5c5c;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { max-width: 760px; margin: 0 auto; padding: 16px 16px 80px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 20px; }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  header h1 span { color: var(--accent); }
+
+  nav { display: flex; gap: 6px; background: var(--surface); padding: 4px; border-radius: 12px; }
+  nav button {
+    flex: 1; border: 0; background: transparent; color: var(--muted);
+    padding: 9px 10px; border-radius: 9px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: .15s;
+  }
+  .subtabs { display: flex; gap: 6px; background: var(--bg); padding: 4px; border-radius: 10px; margin: 12px 0; }
+  .subtabs button { flex: 1; background: transparent; border: 0; color: var(--muted); padding: 8px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+  .subtabs button.active { background: var(--surface-2); color: var(--text); }
+  textarea.code { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; line-height: 1.5; white-space: pre; }
+  nav button.active { background: var(--surface-2); color: var(--text); }
+  nav button:hover:not(.active) { color: var(--text); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-top: 14px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 12px; font-weight: 700; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 600; }
+  input, select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 9px 11px; border-radius: 10px; font-size: 14px; outline: none;
+  }
+  textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 11px; border-radius: 10px; outline: none; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); margin: 0; cursor: pointer; }
+  .check input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+  input[type=color] { padding: 3px; height: 38px; cursor: pointer; }
+
+  button.btn {
+    border: 0; border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: .15s; background: var(--surface-2); color: var(--text);
+  }
+  button.btn:hover { filter: brightness(1.15); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.green { background: var(--accent-2); color: #08221a; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); }
+  .btn.sm { padding: 6px 10px; font-size: 12px; }
+  .btn.icon { padding: 6px 9px; }
+  .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+
+  .muted { color: var(--muted); font-size: 13px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 14px; }
+
+  .list-item {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .list-item .meta { min-width: 0; }
+  .list-item .name { font-weight: 700; font-size: 14px; }
+  .list-item .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .pill { display: inline-block; background: var(--bg); border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; font-size: 11px; color: var(--muted); margin: 2px 4px 2px 0; }
+
+
+  /* Runner overlay */
+  .runner {
+    position: fixed; inset: 0; background: var(--bg); z-index: 50;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;
+  }
+  .runner .stage { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .runner .phase-name { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
+  .runner .time-circle {
+    position: relative;
+    width: min(78vw, 360px); aspect-ratio: 1; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 14px auto 18px; background: var(--surface-2);
+    transition: background-color .25s linear;
+  }
+  .runner .ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; }
+  .runner .ring-track { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 2.6; }
+  .runner .ring-overall { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset .25s linear, stroke .25s linear; }
+  .runner .ring-set { fill: none; stroke-width: 2.2; opacity: .85; transition: r .25s linear, stroke .25s linear; }
+  .runner .time { position: relative; z-index: 1; font-size: clamp(56px, 18vw, 96px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; transition: color .25s linear; }
+  .runner .upnext { color: var(--muted); font-size: 14px; margin-top: 4px; min-height: 20px; }
+  .runner .controls { display: flex; gap: 12px; margin-top: 26px; justify-content: center; flex-wrap: wrap; }
+  .runner .controls .btn { padding: 12px 22px; border-radius: 999px; font-size: 14px; }
+  .runner .controls .btn.ghost { background: var(--surface-2); border-color: transparent; }
+  .runner .controls .btn.danger { background: rgba(255,92,92,.12); border-color: transparent; }
+  .runner .done-screen .big { font-size: 40px; font-weight: 800; }
+
+  /* Calendar */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .cal-dow { text-align: center; font-size: 11px; color: var(--muted); font-weight: 700; padding-bottom: 4px; }
+  .cal-cell {
+    aspect-ratio: 1; border: 1px solid var(--border); border-radius: 9px; background: var(--bg);
+    padding: 4px; font-size: 11px; color: var(--muted); position: relative; overflow: hidden;
+  }
+  .cal-cell.today { border-color: var(--accent); }
+  .cal-cell.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--surface-2); }
+  .cal-cell:not(.empty) { cursor: pointer; }
+  .cal-cell.empty { border: 0; background: transparent; }
+  .cal-cell .dots { position: absolute; bottom: 4px; left: 4px; right: 4px; display: flex; flex-wrap: wrap; gap: 2px; }
+  .cal-cell .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); }
+  .cal-cell.has { background: var(--surface-2); }
+  .legend { font-size: 12px; color: var(--muted); margin-top: 12px; display:flex; align-items:center; gap:6px;}
+
+  .stat-row { display: flex; gap: 10px; margin-top: 12px; }
+  .stat { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat .n { font-size: 24px; font-weight: 800; }
+  .stat .l { font-size: 11px; color: var(--muted); }
+
+  .timer-chip { display:flex; align-items:center; gap:8px; background: var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-top:8px; }
+  .timer-chip .grab { cursor:default; }
+  .timer-chip .num { min-width: 22px; color: var(--muted); font-weight: 700; }
+  .entry { background: var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px; margin-top:10px; }
+  .entry-head { display:flex; align-items:center; gap:8px; }
+  .entry-head .sets { width:64px; flex:none; text-align:center; }
+  .phase-row { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .phase-row .secs { width:76px; flex:none; }
+  .entry-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .chip-btns { display: flex; gap: 6px; }
+  @media (max-width: 560px){
+    /* 16px stops iOS from zooming on focus; bigger tap targets in the editors */
+    input, select, textarea { font-size: 16px; }
+    .chip-btns .btn, .subtabs button, .phase-row .btn { min-height: 40px; min-width: 44px; }
+    .editor-actions .btn { flex: 1; padding: 12px; }
+    textarea.code { font-size: 15px; }
+  }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  hr.sep { border:0; border-top:1px solid var(--border); margin:14px 0; }
+
+  .resume-banner { display:flex; align-items:center; gap:12px; cursor:pointer; border-color: var(--accent-2); }
+  .resume-banner .name { font-weight:700; font-size:14px; }
+  .resume-banner .sub { font-size:12px; color: var(--muted); margin-top:2px; }
+
+  .sessionscreen { background: var(--bg); align-items: flex-start; justify-content: flex-start; overflow-y:auto; }
+  .session-inner { width:100%; max-width:560px; margin:0 auto; padding: 24px 18px 60px; }
+  .session-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .session-title { font-size:26px; font-weight:800; margin-bottom:4px; }
+  .ex-item { display:flex; align-items:center; gap:12px; background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px; }
+  .ex-item.done { opacity:.6; }
+  .ex-item .ex-num { width:30px; height:30px; flex:0 0 30px; border-radius:50%; background: var(--surface-2); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; }
+  .ex-item.done .ex-num { background: var(--accent-2); color:#08221a; }
+  .ex-item .name { font-weight:700; font-size:15px; }
+  .ex-item .sub { font-size:12px; color: var(--muted); margin-top:2px; }
+  .btn.ghost.danger { background:transparent; color:var(--danger); border:1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="app" x-data="app()" x-init="init()">
+
+  <header>
+    <div style="display:flex;align-items:baseline;gap:8px">
+      <h1>Interval<span>·</span>Timer</h1>
+      <span class="muted" style="font-size:11px" x-text="'v'+version"></span>
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" @click="exportData()">Export</button>
+      <button class="btn ghost sm" @click="$refs.importInput.click()">Import</button>
+      <input type="file" accept="application/json,.json" x-ref="importInput" style="display:none" @change="importData($event)">
+    </div>
+  </header>
+
+  <nav>
+    <button :class="{active: tab==='programs'}" @click="tab='programs'">Programs</button>
+    <button :class="{active: tab==='calendar'}" @click="tab='calendar'">Calendar</button>
+  </nav>
+
+  <!-- ===== Active-session resume banner ===== -->
+  <template x-if="session && !showSession && !run.active">
+    <div class="card resume-banner" @click="resumeSession()">
+      <div class="grow">
+        <div class="name" x-text="'▶ '+session.name"></div>
+        <div class="sub" x-text="sessionDoneCount()+' / '+session.entries.length+' exercises done — tap to resume'"></div>
+      </div>
+      <button class="btn green sm" @click.stop="resumeSession()">Resume</button>
+    </div>
+  </template>
+
+  <!-- ============ PROGRAMS TAB ============ -->
+  <template x-if="tab==='programs'">
+    <div>
+      <div class="card">
+        <h2 x-text="editingProgram ? 'Edit program' : 'New program'"></h2>
+        <label>Program name</label>
+        <input x-model="pForm.name" placeholder="e.g. Morning Routine">
+
+        <div class="subtabs">
+          <button :class="{active:pMode==='visual'}" @click="setPMode('visual')">Visual</button>
+          <button :class="{active:pMode==='code'}" @click="setPMode('code')">Code</button>
+        </div>
+
+        <template x-if="pMode==='visual'"><div>
+          <label>Quick add (e.g. “60s Hip Stretches” or “5x 10s Tense, 5s Relax”)</label>
+          <div class="row">
+            <input class="grow" x-model="pQuick" @keydown.enter.prevent="quickAdd()" placeholder="60s Hip Stretches" autocapitalize="sentences">
+            <button class="btn primary" @click="quickAdd()" :disabled="!pQuick.trim()">Add</button>
+          </div>
+          <div style="color:var(--danger);margin-top:6px;font-size:13px" x-show="pQuickErr" x-text="pQuickErr"></div>
+
+          <template x-if="pForm.entries.length===0"><div class="muted" style="margin-top:10px">No exercises yet.</div></template>
+          <template x-for="(e, idx) in pForm.entries" :key="idx">
+            <div class="entry">
+              <div class="entry-head">
+                <span class="num" x-text="(idx+1)+'.'"></span>
+                <input class="grow" x-model="e.name" :placeholder="autoTitle(e)||'Exercise name'" style="padding:6px 9px">
+                <input class="sets" type="number" inputmode="numeric" min="1" x-model.number="e.sets" title="Sets" style="padding:6px 4px">
+                <span class="muted">×</span>
+              </div>
+              <template x-for="(ph, pi) in e.phases" :key="pi">
+                <div class="phase-row">
+                  <input class="secs" type="number" inputmode="decimal" min="0" step="1" x-model.number="ph.seconds" style="padding:6px 8px">
+                  <span class="muted" style="font-size:12px">s</span>
+                  <input class="grow" x-model="ph.name" placeholder="Phase name" style="padding:6px 9px">
+                  <button class="btn ghost sm icon" style="color:var(--muted)" x-show="e.phases.length>1" @click="e.phases.splice(pi,1)" aria-label="Remove phase">✕</button>
+                </div>
+              </template>
+              <div class="entry-foot">
+                <div class="row" style="gap:6px">
+                  <button class="btn ghost sm" @click="e.phases.push({name:'Rest',seconds:10,color:''})">+ Phase</button>
+                  <span class="muted" style="font-size:12px" x-text="fmt(timerDuration(e))"></span>
+                </div>
+                <div class="chip-btns">
+                  <button class="btn sm icon" @click="moveEntry(idx,-1)" :disabled="idx===0" aria-label="Move up">↑</button>
+                  <button class="btn sm icon" @click="moveEntry(idx,1)" :disabled="idx===pForm.entries.length-1" aria-label="Move down">↓</button>
+                  <button class="btn danger sm icon" @click="pForm.entries.splice(idx,1)" aria-label="Remove">✕</button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <button class="btn ghost" style="margin-top:10px;width:100%" @click="pForm.entries.push({name:'',sets:1,phases:[{name:'',seconds:30,color:''}]})">+ Add exercise</button>
+        </div></template>
+
+        <template x-if="pMode==='code'"><div>
+          <label>One exercise per line: <code>60s Hip Stretches</code>, <code>1m30s Plank</code>. Repeat phases with sets: <code>5x 10s Tense, 5s Relax</code>. Optional title: <code>Holds: 5x 10s Tense, 5s Relax</code>. Lines starting with # are ignored.</label>
+          <textarea class="code" x-model="pCode" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="60s Hip Stretches&#10;30s Overhead Triceps&#10;5x 10s Tense, 5s Relax"></textarea>
+          <div style="color:var(--danger);margin-top:8px;white-space:pre-line" x-show="pErrors.length" x-text="pErrors.join('\n')"></div>
+        </div></template>
+
+        <hr class="sep">
+        <label class="check"><input type="checkbox" x-model="pForm.continuous"> Run continuously (no stop between exercises)</label>
+        <div x-show="pForm.continuous" style="margin-top:10px">
+          <label>Break between exercises (seconds, 0 = none)</label>
+          <input type="number" inputmode="numeric" min="0" step="5" x-model.number="pForm.breakSeconds" style="max-width:140px">
+        </div>
+
+        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.entries.length">
+          Total program: <strong x-text="fmt(programDuration(pForm.entries, pForm.continuous ? pForm.breakSeconds : 0))"></strong>
+        </div>
+
+        <div class="row editor-actions" style="margin-top:14px">
+          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.entries.length : !pCode.trim())">Save program</button>
+          <button class="btn ghost" x-show="editingProgram" @click="resetProgramForm()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Your programs</h2>
+        <template x-if="programs.length===0"><div class="empty">No programs yet. Create one above.</div></template>
+        <template x-for="p in programs" :key="p.id">
+          <div class="list-item">
+            <div class="meta grow">
+              <div class="name" x-text="p.name"></div>
+              <div class="sub">
+                <span x-text="p.entries.length+' exercises'"></span> ·
+                <span x-text="fmt(programDuration(p.entries, p.continuous ? p.breakSeconds : 0))"></span> ·
+                <span x-show="p.continuous">continuous ·</span>
+                <span x-text="completionCount(p.id)+'× done'"></span>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn green sm" x-show="!(session && session.programId===p.id)" @click="startProgram(p)">▶ Start</button>
+              <button class="btn green sm" x-show="session && session.programId===p.id" @click="resumeSession()">↻ Resume</button>
+              <button class="btn sm" @click="editProgram(p)">Edit</button>
+              <button class="btn danger sm" @click="confirmId===p.id ? deleteProgram(p.id) : confirmId=p.id" @mouseleave="confirmId=null" x-text="confirmId===p.id?'Sure?':'Del'"></button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ CALENDAR TAB ============ -->
+  <template x-if="tab==='calendar'">
+    <div>
+      <div class="card">
+        <div class="stat-row">
+          <div class="stat"><div class="n" x-text="totalSessions()"></div><div class="l">Sessions</div></div>
+          <div class="stat"><div class="n" x-text="currentStreak()"></div><div class="l">Day streak</div></div>
+          <div class="stat"><div class="n" x-text="thisMonthCount()"></div><div class="l">This month</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cal-head">
+          <button class="btn ghost sm" @click="calShift(-1)">‹</button>
+          <strong x-text="calLabel()"></strong>
+          <button class="btn ghost sm" @click="calShift(1)">›</button>
+        </div>
+        <div class="cal-grid">
+          <template x-for="d in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="d">
+            <div class="cal-dow" x-text="d"></div>
+          </template>
+          <template x-for="(cell,i) in calCells()" :key="i">
+            <div class="cal-cell" :class="{empty: !cell, today: cell && cell.isToday, has: cell && (cell.sessions.length || cell.hasPending), selected: cell && cell.key===cal.selected}" @click="cell && calSelectDay(cell.key)">
+              <template x-if="cell">
+                <div>
+                  <span x-text="cell.day"></span>
+                  <div class="dots">
+                    <template x-for="(s,si) in cell.sessions.slice(0,6)" :key="si">
+                      <span class="dot" :style="isPartialLog(s)?'background:var(--warn)':''" :title="s.name"></span>
+                    </template>
+                    <span x-show="cell.hasPending" class="dot" style="background:var(--warn)" title="In progress"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div class="legend">
+          <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent-2);display:inline-block"></span> completed &nbsp;
+          <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span> partial / in progress
+        </div>
+      </div>
+
+      <div class="card">
+        <template x-if="cal.selected">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h2 x-text="calSelectedLabel()"></h2>
+              <button class="btn ghost sm" @click="cal.selected=null">✕ Clear</button>
+            </div>
+            <template x-if="calSelectedItems().length===0"><div class="empty">No sessions on this day.</div></template>
+            <template x-for="s in calSelectedItems()" :key="s.ts">
+              <div>
+                <div class="list-item" :style="((s.pending||isPartialLog(s))?'border-color:var(--warn);':'')+(calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':'')" style="cursor:pointer" @click="calToggleDetail(s.ts)">
+                  <div class="meta grow">
+                    <div class="name" style="display:flex;align-items:center;gap:6px">
+                      <span x-show="s.pending||isPartialLog(s)" style="width:8px;height:8px;border-radius:50%;background:var(--warn);flex-shrink:0;display:inline-block"></span>
+                      <span x-text="s.name"></span>
+                    </div>
+                    <div class="sub">
+                      <span x-text="new Date(s.ts).toLocaleString()"></span>
+                      <span x-show="s.pending" style="color:var(--warn);margin-left:6px">· In progress</span>
+                      <span x-show="!s.pending && isPartialLog(s)" style="color:var(--warn);margin-left:6px">· Partial</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <button x-show="s.pending" class="btn green sm" @click.stop="resumeSession()" style="white-space:nowrap">▶ Resume</button>
+                    <button x-show="!s.pending" class="btn danger sm" @click.stop="deleteLog(s.ts)">✕</button>
+                    <span x-show="calSessionTimers(s).length>0" class="muted" style="font-size:11px" x-text="calDetail===s.ts?'▲':'▼'"></span>
+                  </div>
+                </div>
+                <div x-show="calDetail===s.ts && calSessionTimers(s).length>0" style="background:var(--surface-2);border:1px solid var(--border);border-top:0;border-radius:0 0 12px 12px;padding:8px 14px;margin-bottom:0">
+                  <template x-for="(tr,ti) in calSessionTimers(s)" :key="ti">
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+                      <span :style="'width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:'+(tr.done?'var(--accent-2)':'var(--surface)')">
+                        <span x-text="tr.done?'✓':'○'" :style="tr.done?'color:#08221a':'color:var(--muted)'"></span>
+                      </span>
+                      <span x-text="tr.name" :style="tr.done?'':'color:var(--muted)'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+        <template x-if="!cal.selected">
+          <div>
+            <h2>Recent sessions</h2>
+            <template x-if="log.length===0"><div class="empty">Complete a program to see it here.</div></template>
+            <template x-for="s in recentLog()" :key="s.ts">
+              <div>
+                <div class="list-item" :style="calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':''" style="cursor:pointer" @click="calToggleDetail(s.ts)">
+                  <div class="meta grow">
+                    <div class="name" x-text="s.name"></div>
+                    <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <button class="btn danger sm" @click.stop="deleteLog(s.ts)">✕</button>
+                    <span x-show="calSessionTimers(s).length>0" class="muted" style="font-size:11px" x-text="calDetail===s.ts?'▲':'▼'"></span>
+                  </div>
+                </div>
+                <div x-show="calDetail===s.ts && calSessionTimers(s).length>0" style="background:var(--surface-2);border:1px solid var(--border);border-top:0;border-radius:0 0 12px 12px;padding:8px 14px">
+                  <template x-for="(tr,ti) in calSessionTimers(s)" :key="ti">
+                    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px">
+                      <span :style="'width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:'+(tr.done?'var(--accent-2)':'var(--surface)')">
+                        <span x-text="tr.done?'✓':'○'" :style="tr.done?'color:#08221a':'color:var(--muted)'"></span>
+                      </span>
+                      <span x-text="tr.name" :style="tr.done?'':'color:var(--muted)'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ PROGRAM SESSION SCREEN ============ -->
+  <template x-if="session && showSession && !run.active">
+    <div class="runner sessionscreen">
+      <div class="session-inner">
+        <div class="session-top">
+          <button class="btn ghost sm" @click="minimizeSession()">‹ Back to app</button>
+          <span class="muted" x-text="sessionDoneCount()+' / '+session.entries.length"></span>
+        </div>
+        <h2 class="session-title" x-text="session.name"></h2>
+        <div class="muted" style="margin-bottom:10px" x-show="!session.continuous">Start each exercise when you're ready.</div>
+        <template x-if="session.continuous && !sessionAllDone()">
+          <button class="btn green" style="width:100%;padding:14px;font-size:15px;margin:4px 0 6px" @click="startContinuous()"
+            x-text="sessionDoneCount() ? '▶ Continue from next exercise' : '▶ Run whole program'"></button>
+        </template>
+
+        <template x-for="(t, i) in session.entries" :key="i">
+          <div class="ex-item" :class="{done: session.exDone[i]}">
+            <div class="ex-num" x-text="session.exDone[i] ? '✓' : (i+1)"></div>
+            <div class="grow">
+              <div class="name" x-text="entryTitle(t)"></div>
+              <div class="sub" x-text="entryLine(t, false)+' · '+fmt(timerDuration(t))"></div>
+            </div>
+            <button class="btn green sm" x-show="!session.exDone[i]" @click="startExercise(i)">▶ Start</button>
+            <button class="btn ghost sm" x-show="!session.exDone[i]" @click="markExDone(i)" style="padding:0 10px" title="Mark as done without running">✓</button>
+            <button class="btn ghost sm" x-show="session.exDone[i]" @click="startExercise(i)">Redo</button>
+          </div>
+        </template>
+
+        <template x-if="sessionAllDone()">
+          <div class="card" style="margin-top:16px;text-align:center;background:var(--surface-2)">
+            <div style="font-size:22px;font-weight:800">🎉 All exercises done!</div>
+            <button class="btn green" style="margin-top:12px" @click="finishSession()">Finish &amp; log it</button>
+          </div>
+        </template>
+
+        <template x-if="!sessionAllDone() && sessionDoneCount() > 0">
+          <div style="margin-top:16px;text-align:center">
+            <button class="btn ghost sm" @click="logPartialSession()">Log as-is</button>
+          </div>
+        </template>
+
+        <div style="margin-top:18px">
+          <button class="btn danger ghost sm"
+            @click="confirmId==='session' ? abandonSession() : confirmId='session'"
+            @mouseleave="confirmId=null"
+            x-text="confirmId==='session' ? 'Sure? Discard progress' : 'Abandon program'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ INTERVAL RUNNER OVERLAY ============ -->
+  <template x-if="run.active">
+    <div class="runner" :class="run.kind">
+      <template x-if="!run.finished">
+        <div class="timer-content" style="width:100%; max-width:480px">
+          <div class="stage" x-text="run.contextLabel"></div>
+          <div class="phase-name" x-text="run.phaseName"></div>
+          <div class="time-circle" :style="circleStyle()">
+            <svg class="ring-svg" viewBox="0 0 100 100">
+              <circle class="ring-track" cx="50" cy="50" r="47"></circle>
+              <circle class="ring-overall" cx="50" cy="50" r="47" :style="overallRingStyle()"></circle>
+              <circle class="ring-set" cx="50" cy="50" :r="setRingRadius()" :style="setRingStyle()" x-show="run.totalSets>1"></circle>
+            </svg>
+            <div class="time" :style="'color:'+contrastColor(run.steps[run.idx].color)+';transition-duration:'+colorAnimMs()+'ms'" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
+          </div>
+          <div class="upnext" x-text="run.upNext ? 'Next: '+run.upNext : 'Last one!'"></div>
+          <template x-if="run.totalSets > 1">
+            <div class="muted" style="font-size:11px;margin-top:10px" x-text="'Set '+run.setNum+' / '+run.totalSets"></div>
+          </template>
+
+          <!-- before first start: big Start button -->
+          <template x-if="run.idx===0 && run.paused && run.pct===0">
+            <div class="controls">
+              <button class="btn green" style="font-size:16px;padding:14px 28px" @click="startRunFromPrep()">▶ Start</button>
+              <button class="btn ghost" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Cancel'"></button>
+            </div>
+          </template>
+
+          <!-- during run -->
+          <template x-if="!(run.idx===0 && run.paused && run.pct===0)">
+            <div class="controls">
+              <button class="btn ghost" @click="togglePause()" x-text="run.paused ? '▶ Resume' : '⏸ Pause'"></button>
+              <button class="btn ghost" @click="skipPhase()">⏭ skip</button>
+              <button class="btn danger" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Stop'"></button>
+            </div>
+          </template>
+        </div>
+      </template>
+      <template x-if="run.finished">
+        <div class="done-screen">
+          <div class="big">✓ Complete</div>
+          <div class="muted" style="margin-top:8px" x-text="run.label"></div>
+          <button class="btn green" style="margin-top:22px" @click="closeRun()"
+            x-text="run.returnTo==='session' ? 'Back to program' : 'Done'"></button>
+        </div>
+      </template>
+    </div>
+  </template>
+
+
+</div>
+
+<script>
+function app(){
+  return {
+    tab: 'programs',
+    version: '2.0.0',
+    timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
+    programs: [], log: [],
+    cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
+
+    editingProgram: null, confirmId: null, calDetail: null,
+    pForm: { name:'', entries:[], continuous:false, breakSeconds:0 },
+    pMode: 'visual', pCode: '', pErrors: [], pQuick: '', pQuickErr: '',
+
+    run: { active:false },
+    session: null,        // persistent in-progress program
+    showSession: false,   // whether the program-run screen is open
+    _tick:null, _audioCtx:null, _wakeLock:null,
+
+    // ---------- persistence ----------
+    init(){
+      // wake locks are dropped when the page is hidden; re-acquire on return
+      document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') this._syncWakeLock(); });
+      this.timers = this.load('it_timers', []);
+      // migrate old format: per-phase sets -> timer-level sets
+      let changed=false;
+      this.timers.forEach(t=>{
+        if(t.sets===undefined){
+          const maxSets=Math.max(1,...t.phases.map(p=>p.sets||1));
+          t.sets=maxSets;
+          t.phases=t.phases.map(p=>({name:p.name,seconds:p.seconds}));
+          changed=true;
+        }
+      });
+      this.programs = this.load('it_programs', []);
+      this.log = this.load('it_log', []);
+      this.session = this.load('it_session', null);
+      // migrate 1.x programs (references to saved timers) to inline entries
+      this.programs.forEach(p=>{ if(this.migrateProgram(p,this.timers)) changed=true; });
+      if(this.session && this.session.timerIds){
+        this.session.entries=this.legacyEntries(this.session.timerIds,this.session.labels,this.timers);
+        delete this.session.timerIds; delete this.session.labels; this.saveSession();
+      }
+      if(changed) this.save();
+    },
+    // Old programs stored timerIds[] + labels[]; inline a copy of each timer as an entry.
+    legacyEntries(ids,labels,timers){
+      return (ids||[]).map((id,i)=>{
+        const t=timers.find(x=>x.id===id); if(!t) return null;
+        const e={name:'',sets:Math.max(1,t.sets||1),phases:t.phases.map(p=>({name:p.name,seconds:p.seconds,color:p.color||''}))};
+        const name=((labels&&labels[i])||'').trim()||t.name;
+        if(name!==this.autoTitle(e)) e.name=name;
+        return e;
+      }).filter(Boolean);
+    },
+    migrateProgram(p,timers){
+      if(!p.timerIds) return false;
+      p.entries=this.legacyEntries(p.timerIds,p.labels,timers);
+      delete p.timerIds; delete p.labels; return true;
+    },
+    // A copy served under /preview/ keeps its own storage (seeded from the live app's) so trying it can't touch real data.
+    _key(k){ return location.pathname.includes('/preview/') ? 'preview_'+k : k },
+    load(k,d){
+      try{
+        const own=localStorage.getItem(this._key(k));
+        return JSON.parse(own!==null ? own : localStorage.getItem(k)) ?? d;
+      }catch(e){ return d }
+    },
+    save(){
+      localStorage.setItem(this._key('it_timers'), JSON.stringify(this.timers));
+      localStorage.setItem(this._key('it_programs'), JSON.stringify(this.programs));
+      localStorage.setItem(this._key('it_log'), JSON.stringify(this.log));
+    },
+    saveSession(){
+      if(this.session) localStorage.setItem(this._key('it_session'), JSON.stringify(this.session));
+      else localStorage.setItem(this._key('it_session'),'null');
+    },
+    uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) },
+
+    // ---------- formatting ----------
+    fmt(s){ s=Math.round(s); const m=Math.floor(s/60), x=s%60; return m? m+'m '+(x?x+'s':''):x+'s' },
+    fmtClock(s, total){
+      if(total!==undefined && total<1){ return Math.max(0,s).toFixed(1) }
+      s=Math.max(0,Math.ceil(s));
+      if(total!==undefined && total<60){ return s }
+      const m=Math.floor(s/60), x=s%60; return m+':'+String(x).padStart(2,'0')
+    },
+
+    // Adaptive color-fade duration: scales with the phase length so sub-second
+    // pulses fade almost instantly while long phases get a smooth transition.
+    colorAnimMs(){
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const sec=cur ? cur.seconds : 0;
+      return Math.round(Math.min(400, Math.max(0, sec)*400));
+    },
+    circleStyle(){
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const color=(cur && cur.color) ? cur.color : '';
+      return 'transition-duration:'+this.colorAnimMs()+'ms;'+(color ? 'background:'+color : '');
+    },
+    // Pick black/white text for legible contrast against the circle color.
+    contrastColor(hex){
+      if(!hex || hex.length<7) return 'var(--text)';
+      const r=parseInt(hex.substr(1,2),16), g=parseInt(hex.substr(3,2),16), b=parseInt(hex.substr(5,2),16);
+      const L=(0.299*r+0.587*g+0.114*b)/255;
+      return L>0.6 ? '#0b0e14' : '#ffffff';
+    },
+    hexToHsl(hex){
+      const r=parseInt(hex.substr(1,2),16)/255, g=parseInt(hex.substr(3,2),16)/255, b=parseInt(hex.substr(5,2),16)/255;
+      const max=Math.max(r,g,b), min=Math.min(r,g,b);
+      let h=0, s=0; const l=(max+min)/2;
+      if(max!==min){
+        const d=max-min;
+        s = l>0.5 ? d/(2-max-min) : d/(max+min);
+        switch(max){
+          case r: h=(g-b)/d+(g<b?6:0); break;
+          case g: h=(b-r)/d+2; break;
+          default: h=(r-g)/d+4;
+        }
+        h*=60;
+      }
+      return {h,s:s*100,l:l*100};
+    },
+    // Neon accent for the progress rings: a hue-rotated, high-saturation pop
+    // that reads against whatever the phase's background color is. Plain
+    // white when no phase color is set.
+    neonAccent(hex){
+      if(!hex || hex.length<7) return '#ffffff';
+      const {h,l}=this.hexToHsl(hex);
+      const hue=(h+180)%360;
+      const light = l>55 ? 42 : 68;
+      return 'hsl('+hue.toFixed(0)+',95%,'+light+'%)';
+    },
+    // Overall progress: a ring traced along the background circle's edge.
+    overallRingStyle(){
+      const c=2*Math.PI*47;
+      const pct=this.run.setPct||0;
+      const offset=c-(pct/100)*c;
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const color=this.neonAccent(cur && cur.color);
+      return 'stroke:'+color+';stroke-dasharray:'+c+';stroke-dashoffset:'+offset+(pct===0?';transition:none':'');
+    },
+    // Current-set progress: a circle stroke growing from the center out to the circle's edge.
+    setRingRadius(){
+      const pct=this.run.curSetPct||0;
+      return (pct/100*44).toFixed(2);
+    },
+    setRingStyle(){
+      const pct=this.run.curSetPct||0;
+      const cur=this.run.steps && this.run.steps[this.run.idx];
+      const color=this.neonAccent(cur && cur.color);
+      return 'stroke:'+color+(pct===0?';transition:none':'');
+    },
+
+    // ---------- timer logic ----------
+    roundDuration(t){ return (t.phases||[]).reduce((a,p)=>a+(p.seconds||0),0) },
+    timerDuration(t){ return this.roundDuration(t)*Math.max(1,t.sets||1) },
+    programDuration(entries,breakSec){ return entries.reduce((a,e)=>a+this.timerDuration(e),0)+Math.max(0,entries.length-1)*Math.max(0,+breakSec||0) },
+    // legacy (1.x) log entries reference saved timers by id
+    entryName(id,label){ const t=this.timers.find(x=>x.id===id); return (label&&label.trim()) || (t?t.name:'(deleted)') },
+
+    // ---------- program entries ----------
+    // An entry is { name, sets, phases:[{name,seconds,color}] }. Empty name -> title derived from phases.
+    autoTitle(e){ return [...new Set(e.phases.map(p=>(p.name||'').trim()).filter(Boolean))].join(' / ') },
+    entryTitle(e){ return (e.name||'').trim() || this.autoTitle(e) || 'Exercise' },
+    // under 2 minutes stays in seconds ("90s"), longer becomes "2m" / "2m30s"
+    fmtCompact(sec){ sec=Math.round(sec*10)/10; if(sec<120) return sec+'s'; const m=Math.floor(sec/60), r=Math.round((sec-m*60)*10)/10; return m+'m'+(r?r+'s':''); },
+    // "5x 10s Tense, 5s Relax" (withTitle adds "Title: " when the name isn't the derived one)
+    entryLine(e,withTitle=true){
+      const body=((e.sets||1)>1?e.sets+'x ':'')+e.phases.map(p=>this.fmtCompact(p.seconds)+(p.name?' '+p.name:'')).join(', ');
+      const n=(e.name||'').trim();
+      return (withTitle && n && n!==this.autoTitle(e) ? n+': ' : '')+body;
+    },
+    // "90s" / "1m30s" / "1.5m" / "2m" -> seconds, else null
+    parseDur(tok){
+      const m=/^(?:(\d+(?:\.\d+)?)m(?:in)?)?(?:(\d+(?:\.\d+)?)s(?:ec)?)?$/i.exec(tok);
+      if(!m||(!m[1]&&!m[2])) return null;
+      const s=(m[1]?+m[1]*60:0)+(m[2]?+m[2]:0);
+      return s>0?s:null;
+    },
+    // "10s Tense" or "Tense 10s" (also "1m 30s Plank")
+    parsePhase(str){
+      const t=str.trim().split(/\s+/).filter(Boolean);
+      const tries=[[2,true],[1,true],[2,false],[1,false]];
+      for(const [n,front] of tries){
+        if(t.length<n) continue;
+        const durToks=front?t.slice(0,n):t.slice(t.length-n);
+        const sec=this.parseDur(durToks.join(''));
+        if(sec!=null) return {name:(front?t.slice(n):t.slice(0,t.length-n)).join(' '),seconds:sec,color:''};
+      }
+      return null;
+    },
+    // one line -> entry, or a string describing the problem
+    parseEntryLine(line){
+      let title='', body=line.trim();
+      const c=body.indexOf(':');
+      if(c>0){ const r=this.parseEntryBody(body.slice(c+1)); if(r) { title=body.slice(0,c).trim(); return {...r,name:title}; } }
+      return this.parseEntryBody(body) || 'expected e.g. "60s Hip Stretches" or "5x 10s Tense, 5s Relax"';
+    },
+    parseEntryBody(body){
+      let sets=1;
+      const m=/^\s*(\d+)\s*[x×]\s+(.*)$/i.exec(body);
+      if(m){ sets=+m[1]; body=m[2]; }
+      if(sets<1) return null;
+      const phases=body.split(',').map(p=>p.trim()).filter(Boolean).map(p=>this.parsePhase(p));
+      if(!phases.length||phases.some(p=>!p)) return null;
+      return {name:'',sets,phases};
+    },
+    programToCode(){ return this.pForm.entries.map(e=>this.entryLine(e)).join('\n') },
+    // Parses code into {entries, errors}; does not touch state.
+    parseProgramCode(code){
+      const entries=[], errors=[];
+      code.split('\n').forEach((raw,n)=>{
+        const line=raw.trim(); if(!line||line.startsWith('#')) return;
+        const r=this.parseEntryLine(line);
+        if(typeof r==='string') errors.push('Line '+(n+1)+': '+r+' — '+line); else entries.push(r);
+      });
+      return {entries,errors};
+    },
+    // Applies pCode to pForm. Phase colours survive when the phase at the same spot keeps its name.
+    applyProgramCode(){
+      const r=this.parseProgramCode(this.pCode);
+      this.pErrors=r.errors;
+      if(r.errors.length) return false;
+      r.entries.forEach((e,i)=>e.phases.forEach((p,j)=>{
+        const old=this.pForm.entries[i]&&this.pForm.entries[i].phases[j];
+        if(old&&old.name===p.name) p.color=old.color||'';
+      }));
+      this.pForm.entries=r.entries;
+      return true;
+    },
+    setPMode(mode){
+      if(mode===this.pMode) return;
+      if(mode==='code'){ this.pCode=this.programToCode(); this.pErrors=[]; this.pMode='code'; }
+      else if(this.applyProgramCode()) this.pMode='visual';
+    },
+    quickAdd(){
+      const lines=this.pQuick.split('\n').map(l=>l.trim()).filter(Boolean);
+      const parsed=lines.map(l=>this.parseEntryLine(l));
+      const bad=parsed.find(p=>typeof p==='string');
+      if(bad){ this.pQuickErr=bad; return; }
+      this.pForm.entries.push(...parsed); this.pQuick=''; this.pQuickErr='';
+    },
+    moveEntry(i,dir){
+      const j=i+dir, a=this.pForm.entries; if(j<0||j>=a.length)return;
+      [a[i],a[j]]=[a[j],a[i]];
+    },
+    cleanEntries(entries){
+      return entries.map(e=>({
+        name:(e.name||'').trim(), sets:Math.max(1,Math.round(+e.sets||1)),
+        phases:e.phases.filter(p=>+p.seconds>0).map(p=>({name:(p.name||'').trim(),seconds:+p.seconds,color:p.color||''}))
+      })).filter(e=>e.phases.length);
+    },
+    saveProgram(){
+      if(this.pMode==='code' && !this.applyProgramCode()) return;
+      const clean={ name:this.pForm.name.trim(), entries:this.cleanEntries(this.pForm.entries),
+        continuous:!!this.pForm.continuous, breakSeconds:this.pForm.continuous?Math.max(0,Math.round(+this.pForm.breakSeconds||0)):0 };
+      if(!clean.name){ alert('Give the program a name'); return; }
+      if(!clean.entries.length){ alert('Add at least one exercise with a duration'); return; }
+      if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
+      else { clean.id=this.uid(); this.programs.push(clean); }
+      this.save(); this.resetProgramForm();
+    },
+    editProgram(p){ this.resetProgramForm(); this.editingProgram=p.id; this.pForm={name:p.name,entries:JSON.parse(JSON.stringify(p.entries)),continuous:!!p.continuous,breakSeconds:p.breakSeconds||0}; window.scrollTo({top:0,behavior:'smooth'}); },
+    deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
+    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',entries:[],continuous:false,breakSeconds:0}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; this.pQuick=''; this.pQuickErr=''; },
+
+    // ---------- build run steps (single exercise/timer) ----------
+    buildSteps(timer,displayName){
+      const title=displayName||timer.name;
+      const sets=Math.max(1,timer.sets||1);
+      const pps=timer.phases.length;
+      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting',setNum:0,phaseInSet:0,phasesPerSet:pps,totalSets:sets,color:''}];
+      for(let s=1;s<=sets;s++){
+        timer.phases.forEach((ph,i)=>{
+          const isRest=/rest|pause|break|relax|recover/i.test(ph.name);
+          steps.push({
+            name: ph.name||title,
+            seconds: ph.seconds,
+            kind: isRest?'rest':'work',
+            ctx: title+(sets>1?' · set '+s+'/'+sets:''),
+            setNum: s,
+            phaseInSet: i,
+            phasesPerSet: pps,
+            totalSets: sets,
+            color: ph.color||''
+          });
+        });
+      }
+      return steps;
+    },
+
+    // ---------- program session ----------
+    startProgram(p){
+      if(!p.entries.length){ alert('This program has no exercises.'); return; }
+      if(this.session && this.session.programId!==p.id){
+        if(!confirm(`"${this.session.name}" is still in progress. Abandon it and start "${p.name}"?`)) return;
+      }
+      this.session={
+        programId:p.id, name:p.name,
+        entries:JSON.parse(JSON.stringify(p.entries)),
+        exDone:p.entries.map(()=>false),
+        continuous:!!p.continuous, breakSeconds:p.breakSeconds||0,
+        startedTs: Date.now(), lastExerciseTs: null
+      };
+      this.saveSession();
+      this.showSession=true;
+      if(this.session.continuous) this.startContinuous();
+    },
+    resumeSession(){ this.showSession=true; },
+    minimizeSession(){ this.showSession=false; },   // back to main app, session kept
+    sessionAllDone(){ return this.session && this.session.exDone.length>0 && this.session.exDone.every(Boolean); },
+    sessionDoneCount(){ return this.session? this.session.exDone.filter(Boolean).length : 0; },
+    markExDone(i){ this.session.exDone[i]=true; this.session.lastExerciseTs=Date.now(); this.saveSession(); },
+    logPartialSession(){
+      const ts=this.session.lastExerciseTs||Date.now();
+      this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)), exDone:[...this.session.exDone], names:this.session.entries.map(e=>this.entryTitle(e)) });
+      this.save();
+      this.session=null; this.saveSession(); this.showSession=false;
+    },
+
+    startExercise(i){
+      const t=this.session.entries[i];
+      if(!t)return;
+      const name=this.entryTitle(t);
+      const steps=this.buildSteps(t,name);
+      const totalSets=Math.max(1,t.sets||1);
+      this.run={
+        active:true, finished:false, paused:true, returnTo:'session',
+        steps, idx:0, remaining:steps[0].seconds,
+        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
+        setNum:0, totalSets,
+        label: name, logOnFinish:false, programId:this.session.programId, exIndex:i
+      };
+      this._startTick();
+    },
+
+    // Runs every not-yet-done exercise back to back, with optional breaks in between.
+    // Each exercise is marked done as soon as its last step completes.
+    startContinuous(){
+      const todo=this.session.entries.map((e,i)=>i).filter(i=>!this.session.exDone[i]);
+      if(!todo.length) return;
+      const brk=this.session.breakSeconds||0;
+      const steps=[];
+      todo.forEach((i,k)=>{
+        const t=this.session.entries[i];
+        const name=this.entryTitle(t);
+        const ex=this.buildSteps(t,name).slice(k===0?0:1).map(st=>({...st,exIndex:i}));
+        ex[ex.length-1].lastOfEx=true;
+        if(k>0 && brk>0){
+          steps.push({name:'Break',seconds:brk,kind:'rest',ctx:'Up next: '+name,setNum:0,phaseInSet:0,phasesPerSet:0,totalSets:1,color:''});
+        }
+        steps.push(...ex);
+      });
+      const t0=this.session.entries[todo[0]];
+      this.run={
+        active:true, finished:false, paused:true, returnTo:'session',
+        steps, idx:0, remaining:steps[0].seconds,
+        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
+        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
+        setNum:0, totalSets:Math.max(1,t0.sets||1),
+        label: this.session.name, logOnFinish:false, programId:this.session.programId, exIndex:null
+      };
+      this._startTick();
+    },
+
+    finishSession(){
+      if(this.sessionAllDone()){
+        const ts=this.session.lastExerciseTs||Date.now();
+        this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)) });
+        this.save();
+      }
+      this.session=null; this.saveSession(); this.showSession=false;
+    },
+    abandonSession(){ this.session=null; this.saveSession(); this.showSession=false; this.confirmId=null; },
+
+    // ---------- interval ticking ----------
+    // keep the screen on while a timer is actively running
+    async _syncWakeLock(){
+      const want=!!(this.run && this.run.active && !this.run.paused && !this.run.finished);
+      try{
+        if(want && !this._wakeLock && 'wakeLock' in navigator && document.visibilityState==='visible'){
+          const lock=await navigator.wakeLock.request('screen');
+          this._wakeLock=lock;
+          lock.addEventListener('release',()=>{ if(this._wakeLock===lock) this._wakeLock=null; });
+          if(!(this.run && this.run.active && !this.run.paused && !this.run.finished)) this._syncWakeLock();
+        } else if(!want && this._wakeLock){
+          const l=this._wakeLock; this._wakeLock=null; await l.release();
+        }
+      }catch(e){ /* unsupported or denied: ignore */ }
+    },
+    _startTick(){
+      clearInterval(this._tick);
+      let last=performance.now();
+      this._tick=setInterval(()=>{
+        if(this.run.paused){ last=performance.now(); return; }
+        const now=performance.now(), dt=(now-last)/1000; last=now;
+        this.run.remaining-=dt;
+        const cur=this.run.steps[this.run.idx];
+        this.run.pct=Math.min(100,(1-this.run.remaining/cur.seconds)*100);
+        const sn=cur.setNum, pip=cur.phaseInSet, pps=cur.phasesPerSet, ts=this.run.totalSets;
+        if(sn>0 && pps>0 && ts>0){
+          this.run.setPct=Math.min(100,((sn-1)*pps+pip+(1-this.run.remaining/cur.seconds))/(ts*pps)*100);
+        }
+        if(sn>0 && pps>0){
+          this.run.curSetPct=Math.min(100,(pip+(1-this.run.remaining/cur.seconds))/pps*100);
+        }
+        if(this.run.remaining<=3.999 && Math.ceil(this.run.remaining)!==Math.ceil(this.run.remaining+dt) && this.run.remaining>0){
+          this.beep(660,0.07);
+        }
+        if(this.run.remaining<=0){ this._advance(); }
+      },50);
+    },
+    _advance(){
+      const done=this.run.steps[this.run.idx];
+      if(done && done.lastOfEx && this.session && this.run.returnTo==='session'){
+        this.session.exDone[done.exIndex]=true; this.session.lastExerciseTs=Date.now(); this.saveSession();
+      }
+      if(this.run.idx+1>=this.run.steps.length){ this._finishRun(); return; }
+      this.run.idx++;
+      const cur=this.run.steps[this.run.idx];
+      this.run.remaining=cur.seconds; this.run.kind=cur.kind;
+      this.run.phaseName=cur.name; this.run.contextLabel=cur.ctx; this.run.pct=0;
+      this.run.setNum=cur.setNum||0;
+      if(cur.totalSets) this.run.totalSets=cur.totalSets;
+      const sn=cur.setNum, pps=cur.phasesPerSet, ts=this.run.totalSets;
+      this.run.setPct=(sn>0&&pps>0&&ts>0) ? ((sn-1)*pps+cur.phaseInSet)/(ts*pps)*100 : 0;
+      this.run.curSetPct=(sn>0&&pps>0) ? (cur.phaseInSet/pps*100) : 0;
+      this.run.upNext=this.run.steps[this.run.idx+1]?this.run.steps[this.run.idx+1].name:'';
+      this.beep(cur.kind==='rest'?440:880,0.12);
+      this.vibrate(cur.kind);
+    },
+    _finishRun(){
+      clearInterval(this._tick);
+      this.beep(990,0.18); setTimeout(()=>this.beep(1320,0.22),180);
+      this.vibrate('finish');
+      this.run.finished=true; this._syncWakeLock();
+      if(this.run.logOnFinish){
+        this.log.push({ ts:Date.now(), programId:null, name:this.run.label, date:this._dateKey(new Date()) });
+        this.save();
+      }
+      if(this.run.returnTo==='session' && this.session && this.run.exIndex!=null){
+        this.session.exDone[this.run.exIndex]=true;
+        this.session.lastExerciseTs=Date.now();
+        this.saveSession();
+      }
+    },
+    startRunFromPrep(){ // user presses the big start; un-pause and beep
+      this.run.paused=false; this.beep(880,0.12); this.vibrate('work'); this._syncWakeLock();
+    },
+    togglePause(){ this.run.paused=!this.run.paused; this._syncWakeLock(); },
+    skipPhase(){ this.run.remaining=0; },
+    // leave the interval overlay back to where we came from (session keeps progress, but
+    // the current in-progress exercise is NOT marked done)
+    exitRun(){
+      clearInterval(this._tick);
+      const back=this.run.returnTo;
+      this.run={active:false}; this._syncWakeLock();
+      if(back==='session'){ this.showSession=true; }
+    },
+    // called from the "Done" button on the finished screen
+    closeRun(){
+      clearInterval(this._tick);
+      const back=this.run.returnTo;
+      this.run={active:false}; this._syncWakeLock();
+      if(back==='session'){ this.showSession=true; }
+    },
+
+    // ---------- audio ----------
+    beep(freq,dur){
+      try{
+        this._audioCtx=this._audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+        const ctx=this._audioCtx, o=ctx.createOscillator(), g=ctx.createGain();
+        o.frequency.value=freq; o.type='sine'; o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.18,ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+dur);
+        o.start(); o.stop(ctx.currentTime+dur);
+      }catch(e){}
+    },
+
+    vibrate(kind){
+      if(navigator.vibrate){
+        try{
+          if(kind==='finish') navigator.vibrate([150,80,150,80,150]);
+          else if(kind==='rest') navigator.vibrate([80,60,80]);
+          else navigator.vibrate(200);
+        }catch(e){}
+        return;
+      }
+      // iOS fallback: noise bursts mimic haptic patterns
+      this._hapticClick(kind);
+    },
+    _hapticClick(kind){
+      try{
+        this._audioCtx=this._audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+        const ctx=this._audioCtx;
+        const fire=(t)=>{
+          const frames=Math.floor(ctx.sampleRate*0.012);
+          const buf=ctx.createBuffer(1,frames,ctx.sampleRate);
+          const d=buf.getChannelData(0);
+          for(let i=0;i<frames;i++) d[i]=(Math.random()*2-1)*(1-i/frames);
+          const src=ctx.createBufferSource(), g=ctx.createGain();
+          g.gain.value=0.25; src.buffer=buf;
+          src.connect(g); g.connect(ctx.destination);
+          src.start(t);
+        };
+        const t=ctx.currentTime;
+        if(kind==='rest'){ fire(t); fire(t+0.12); }
+        else if(kind==='finish'){ fire(t); fire(t+0.12); fire(t+0.24); }
+        else{ fire(t); }
+      }catch(e){}
+    },
+
+    // ---------- log / stats ----------
+    isPartialLog(s){ return !!(s.exDone && s.exDone.some(d=>!d)); },
+    completionCount(pid){ return this.log.filter(l=>l.programId===pid).length },
+    totalSessions(){ return this.log.length },
+    thisMonthCount(){ const n=new Date(); return this.log.filter(l=>{const d=new Date(l.ts);return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}).length },
+    currentStreak(){
+      if(!this.log.length)return 0;
+      const days=new Set(this.log.map(l=>l.date));
+      let streak=0, d=new Date();
+      while(days.has(this._dateKey(d))){ streak++; d.setDate(d.getDate()-1); }
+      // allow streak to start yesterday if nothing today
+      if(streak===0){ d=new Date(); d.setDate(d.getDate()-1); while(days.has(this._dateKey(d))){streak++;d.setDate(d.getDate()-1);} }
+      return streak;
+    },
+    recentLog(){ return [...this.log].sort((a,b)=>b.ts-a.ts).slice(0,12) },
+    deleteLog(ts){ this.log=this.log.filter(l=>l.ts!==ts); this.save(); },
+
+    // ---------- calendar ----------
+    _dateKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0') },
+    calLabel(){ return new Date(this.cal.y,this.cal.m,1).toLocaleString(undefined,{month:'long',year:'numeric'}) },
+    calShift(n){ let m=this.cal.m+n,y=this.cal.y; if(m<0){m=11;y--} if(m>11){m=0;y++} this.cal.m=m; this.cal.y=y; this.cal.selected=null; this.calDetail=null; },
+    calSelectDay(key){ this.cal.selected = this.cal.selected===key ? null : key; this.calDetail=null; },
+    calSelectedLog(){ return this.log.filter(l=>l.date===this.cal.selected).sort((a,b)=>b.ts-a.ts); },
+    calSelectedItems(){
+      const items=this.log.filter(l=>l.date===this.cal.selected).sort((a,b)=>b.ts-a.ts).map(l=>({...l,pending:false}));
+      if(this.session){
+        const pk=this._dateKey(new Date(this.session.startedTs));
+        if(pk===this.cal.selected) items.unshift({ts:this.session.startedTs,name:this.session.name,programId:this.session.programId,date:pk,pending:true,exDone:[...this.session.exDone],names:this.session.entries.map(e=>this.entryTitle(e))});
+      }
+      return items;
+    },
+    calSessionTimers(item){
+      const lbl=(arr,i)=>arr&&arr[i];
+      if(item.exDone && item.names) return item.names.map((name,i)=>({name,done:item.exDone[i]}));
+      if(item.exDone && item.timerIds) return item.timerIds.map((id,i)=>({name:this.entryName(id,lbl(item.labels,i)),done:item.exDone[i]}));
+      const prog=this.programs.find(p=>p.id===item.programId);
+      if(prog) return prog.entries.map(e=>({name:this.entryTitle(e),done:true}));
+      return [];
+    },
+    calToggleDetail(ts){ this.calDetail=this.calDetail===ts?null:ts; },
+    calSelectedLabel(){ if(!this.cal.selected)return ''; const [y,m,d]=this.cal.selected.split('-'); return new Date(+y,+m-1,+d).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'}); },
+    calCells(){
+      const y=this.cal.y,m=this.cal.m;
+      const first=new Date(y,m,1); let lead=(first.getDay()+6)%7; // Monday start
+      const days=new Date(y,m+1,0).getDate();
+      const today=this._dateKey(new Date());
+      const pendingKey=this.session ? this._dateKey(new Date(this.session.startedTs)) : null;
+      const cells=[];
+      for(let i=0;i<lead;i++)cells.push(null);
+      for(let day=1;day<=days;day++){
+        const key=y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+        cells.push({ day, key, isToday:key===today, sessions:this.log.filter(l=>l.date===key), hasPending:key===pendingKey });
+      }
+      return cells;
+    },
+
+    // ---------- export / import ----------
+    exportData(){
+      const data=JSON.stringify({version:2,programs:this.programs,log:this.log},null,2);
+      try{
+        const blob=new Blob([data],{type:'application/json'});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url; a.download='interval-timer-data.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }catch(e){
+        // Fallback for sandboxed contexts where downloads are blocked
+        const w=window.open('','_blank');
+        if(w){ w.document.write('<pre>'+data.replace(/</g,'&lt;')+'</pre>'); }
+        else { prompt('Copy your data:', data); }
+      }
+    },
+    importData(ev){
+      const file=ev.target.files && ev.target.files[0];
+      if(!file)return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const d=JSON.parse(reader.result);
+          if(!d || typeof d!=='object') throw new Error('bad');
+          // 1.x exports reference timers; inline them and keep them for naming old log entries
+          (d.programs||[]).forEach(p=>this.migrateProgram(p,d.timers||[]));
+          const mode = this.programs.length||this.log.length
+            ? (confirm('Replace all current data?\n\nOK = replace everything\nCancel = merge with existing') ? 'replace' : 'merge')
+            : 'replace';
+          if(mode==='replace'){
+            this.timers = d.timers||this.timers;
+            this.programs = d.programs||[];
+            this.log = d.log||[];
+          }else{
+            const ids=new Set(this.timers.map(t=>t.id));
+            (d.timers||[]).forEach(t=>{ if(!ids.has(t.id)) this.timers.push(t); });
+            const pids=new Set(this.programs.map(p=>p.id));
+            (d.programs||[]).forEach(p=>{ if(!pids.has(p.id)) this.programs.push(p); });
+            const ts=new Set(this.log.map(l=>l.ts));
+            (d.log||[]).forEach(l=>{ if(!ts.has(l.ts)) this.log.push(l); });
+          }
+          this.save();
+          alert('Imported '+(d.programs?.length||0)+' programs, '+(d.log?.length||0)+' sessions.');
+        }catch(e){
+          alert('Could not import: the file is not valid Interval-Timer data.');
+        }
+        ev.target.value='';
+      };
+      reader.readAsText(file);
+    },
+  }
+}
+</script>
+</body>
+</html>
