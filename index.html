@@ -508,6 +508,7 @@
           <template x-if="run.idx===0 && run.paused && run.pct===0">
             <div class="controls">
               <button class="btn green" style="font-size:16px;padding:14px 28px" @click="startRunFromPrep()">▶ Start</button>
+              <button class="btn ghost" @click="toggleVoice()" :aria-label="voiceOn ? 'Mute voice' : 'Unmute voice'" x-text="voiceOn ? '🔊' : '🔇'"></button>
               <button class="btn ghost" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Cancel'"></button>
             </div>
           </template>
@@ -517,6 +518,7 @@
             <div class="controls">
               <button class="btn ghost" @click="togglePause()" x-text="run.paused ? '▶ Resume' : '⏸ Pause'"></button>
               <button class="btn ghost" @click="skipPhase()">⏭ skip</button>
+              <button class="btn ghost" @click="toggleVoice()" :aria-label="voiceOn ? 'Mute voice' : 'Unmute voice'" x-text="voiceOn ? '🔊' : '🔇'"></button>
               <button class="btn danger" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Stop'"></button>
             </div>
           </template>
@@ -540,7 +542,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '2.2.0',
+    version: '2.3.0',
     timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
     programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
@@ -554,6 +556,7 @@ function app(){
     session: null,        // persistent in-progress program
     showSession: false,   // whether the program-run screen is open
     _tick:null, _audioCtx:null, _wakeLock:null,
+    voiceOn: true,        // speak phase names (Web Speech API)
 
     // ---------- persistence ----------
     init(){
@@ -798,6 +801,7 @@ function app(){
       if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
       else { clean.id=this.uid(); this.programs.push(clean); }
       this.save(); this.resetProgramForm();
+      this.voiceOn=this.load('it_voice',true)!==false;
     },
     editProgram(p){ this.resetProgramForm(); this.editingProgram=p.id; this.pForm={name:p.name,entries:JSON.parse(JSON.stringify(p.entries)),breakSeconds:p.breakSeconds||0}; window.scrollTo({top:0,behavior:'smooth'}); },
     deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
@@ -959,6 +963,11 @@ function app(){
         if(sn>0 && pps>0){
           this.run.curSetPct=Math.min(100,(pip+(1-this.run.remaining/cur.seconds))/pps*100);
         }
+        // announce what's next just before the countdown beeps; skipped on phases too short for it
+        if(!cur.announced && cur.seconds>=8 && this.run.remaining<=6.5 && this.run.remaining>4){
+          cur.announced=true;
+          if(this.run.steps[this.run.idx+1]) this.say('Next: '+this.spokenStep(this.run.idx+1,true));
+        }
         if(this.run.remaining<=3.999 && Math.ceil(this.run.remaining)!==Math.ceil(this.run.remaining+dt) && this.run.remaining>0){
           this.beep(660,0.07);
         }
@@ -990,11 +999,13 @@ function app(){
       this.run.upNext=this.upNextLabel(this.run.steps,this.run.idx);
       this.beep(cur.kind==='rest'?440:880,0.12);
       this.vibrate(cur.kind);
+      this.say(this.spokenStep(this.run.idx));
     },
     _finishRun(){
       clearInterval(this._tick);
       this.beep(990,0.18); setTimeout(()=>this.beep(1320,0.22),180);
       this.vibrate('finish');
+      this.say('Done. Well done!');
       this.run.finished=true; this._syncWakeLock();
       if(this.run.logOnFinish){
         this.log.push({ ts:Date.now(), programId:null, name:this.run.label, date:this._dateKey(new Date()) });
@@ -1008,13 +1019,15 @@ function app(){
     },
     startRunFromPrep(){ // user presses the big start; un-pause and beep
       this.run.paused=false; this.beep(880,0.12); this.vibrate('work'); this._syncWakeLock();
+      // speaking inside the tap also unlocks speech on iOS for the rest of the run
+      this.say(this.spokenStep(this.run.idx));
     },
-    togglePause(){ this.run.paused=!this.run.paused; this._syncWakeLock(); },
+    togglePause(){ this.run.paused=!this.run.paused; this._syncWakeLock(); if(this.run.paused) this.hush(); },
     skipPhase(){ this.run.remaining=0; },
     // leave the interval overlay back to where we came from (session keeps progress, but
     // the current in-progress exercise is NOT marked done)
     exitRun(){
-      clearInterval(this._tick);
+      clearInterval(this._tick); this.hush();
       const back=this.run.returnTo;
       this.run={active:false}; this._syncWakeLock();
       if(back==='session'){ this.resumeSession(); }
@@ -1025,6 +1038,43 @@ function app(){
       const back=this.run.returnTo;
       this.run={active:false}; this._syncWakeLock();
       if(back==='session'){ this.resumeSession(); }
+    },
+
+    // ---------- voice ----------
+    // What to say for a step: its name, led by the exercise title when a new exercise starts,
+    // plus the set number on the first phase of later sets. withDuration is for the heads-up.
+    spokenStep(idx,withDuration){
+      const st=this.run.steps[idx], prev=this.run.steps[idx-1];
+      if(!st) return '';
+      if(st.kind==='prep') return (st.exTitle ? st.exTitle+'. ' : '')+'Get ready';
+      if(!st.exTitle && this.run.steps[idx+1]) return st.name+'. Up next: '+this.spokenStep(idx+1,true); // break between exercises
+      const parts=[];
+      const newEx=st.exTitle && prev && prev.kind!=='prep' && prev.exTitle!==st.exTitle;
+      if(newEx && st.name!==st.exTitle) parts.push(st.exTitle);
+      parts.push(st.name);
+      if(st.totalSets>1 && st.setNum>1 && st.phaseInSet===0) parts.push('set '+st.setNum+' of '+st.totalSets);
+      if(withDuration && st.seconds>=10) parts.push(this.spokenDuration(st.seconds));
+      return parts.join(', ');
+    },
+    spokenDuration(s){
+      s=Math.round(s);
+      const m=Math.floor(s/60), r=s%60;
+      return [m ? m+(m===1?' minute':' minutes') : '', r ? r+' seconds' : ''].filter(Boolean).join(' ');
+    },
+    say(text){
+      if(!this.voiceOn || !text || !('speechSynthesis' in window)) return;
+      try{
+        speechSynthesis.cancel(); // never let announcements queue up behind the clock
+        const u=new SpeechSynthesisUtterance(text);
+        u.rate=1.05;
+        speechSynthesis.speak(u);
+      }catch(e){}
+    },
+    hush(){ try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} },
+    toggleVoice(){
+      this.voiceOn=!this.voiceOn;
+      localStorage.setItem(this._key('it_voice'), JSON.stringify(this.voiceOn));
+      if(this.voiceOn) this.say('Voice on'); else this.hush();
     },
 
     // ---------- audio ----------
