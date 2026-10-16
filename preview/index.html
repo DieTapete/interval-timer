@@ -181,6 +181,9 @@
   .ex-item.done .ex-num { background: var(--accent-2); color:#08221a; }
   .ex-item .name { font-weight:700; font-size:15px; }
   .ex-item .sub { font-size:12px; color: var(--muted); margin-top:2px; }
+  .setting-range { margin-top: 12px; }
+  .setting-range label { display:flex; justify-content:space-between; }
+  .setting-range input[type=range] { padding: 0; border: 0; background: transparent; accent-color: var(--accent); }
   .btn.ghost.danger { background:transparent; color:var(--danger); border:1px solid var(--border); }
 </style>
 </head>
@@ -196,6 +199,7 @@
       <button class="btn ghost sm" @click="exportData()">Export</button>
       <button class="btn ghost sm" @click="$refs.importInput.click()">Import</button>
       <input type="file" accept="application/json,.json" x-ref="importInput" style="display:none" @change="importData($event)">
+      <button class="btn ghost sm" @click="showSettings=true" aria-label="Settings">⚙</button>
     </div>
   </header>
 
@@ -219,81 +223,11 @@
   <template x-if="tab==='programs'">
     <div>
       <div class="card">
-        <h2 x-text="editingProgram ? 'Edit program' : 'New program'"></h2>
-        <label>Program name</label>
-        <input x-model="pForm.name" placeholder="e.g. Morning Routine">
-
-        <div class="subtabs">
-          <button :class="{active:pMode==='visual'}" @click="setPMode('visual')">Visual</button>
-          <button :class="{active:pMode==='code'}" @click="setPMode('code')">Code</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <h2 style="margin:0">Your programs</h2>
+          <button class="btn primary sm" @click="newProgram()">+ New program</button>
         </div>
-
-        <template x-if="pMode==='visual'"><div>
-          <label>Quick add (e.g. “60s Hip Stretches” or “5x 10s Tense, 5s Relax”)</label>
-          <div class="row">
-            <input class="grow" x-model="pQuick" @keydown.enter.prevent="quickAdd()" placeholder="60s Hip Stretches" autocapitalize="sentences">
-            <button class="btn primary" @click="quickAdd()" :disabled="!pQuick.trim()">Add</button>
-          </div>
-          <div style="color:var(--danger);margin-top:6px;font-size:13px" x-show="pQuickErr" x-text="pQuickErr"></div>
-
-          <template x-if="pForm.entries.length===0"><div class="muted" style="margin-top:10px">No exercises yet.</div></template>
-          <template x-for="(e, idx) in pForm.entries" :key="idx">
-            <div class="entry">
-              <div class="entry-head">
-                <span class="num" x-text="(idx+1)+'.'"></span>
-                <input class="grow" x-model="e.name" :placeholder="autoTitle(e)||'Exercise name'" style="padding:6px 9px">
-                <input class="sets" type="number" inputmode="numeric" min="1" x-model.number="e.sets" title="Sets" style="padding:6px 4px">
-                <span class="muted">×</span>
-              </div>
-              <template x-for="(ph, pi) in e.phases" :key="pi">
-                <div class="phase-row">
-                  <input class="secs" type="number" inputmode="decimal" min="0" step="1" x-model.number="ph.seconds" style="padding:6px 8px">
-                  <span class="muted" style="font-size:12px">s</span>
-                  <input class="grow" x-model="ph.name" placeholder="Phase name" style="padding:6px 9px">
-                  <button class="btn ghost sm icon" style="color:var(--muted)" x-show="e.phases.length>1" @click="e.phases.splice(pi,1)" aria-label="Remove phase">✕</button>
-                </div>
-              </template>
-              <div class="entry-foot">
-                <div class="row" style="gap:6px">
-                  <button class="btn ghost sm" @click="e.phases.push({name:'Rest',seconds:10,color:''})">+ Phase</button>
-                  <span class="muted" style="font-size:12px" x-text="fmt(timerDuration(e))"></span>
-                </div>
-                <div class="chip-btns">
-                  <button class="btn sm icon" @click="moveEntry(idx,-1)" :disabled="idx===0" aria-label="Move up">↑</button>
-                  <button class="btn sm icon" @click="moveEntry(idx,1)" :disabled="idx===pForm.entries.length-1" aria-label="Move down">↓</button>
-                  <button class="btn danger sm icon" @click="pForm.entries.splice(idx,1)" aria-label="Remove">✕</button>
-                </div>
-              </div>
-            </div>
-          </template>
-          <button class="btn ghost" style="margin-top:10px;width:100%" @click="pForm.entries.push({name:'',sets:1,phases:[{name:'',seconds:30,color:''}]})">+ Add exercise</button>
-        </div></template>
-
-        <template x-if="pMode==='code'"><div>
-          <label>One exercise per line: <code>60s Hip Stretches</code>, <code>1m30s Plank</code>. Repeat phases with sets: <code>5x 10s Tense, 5s Relax</code>. Optional title: <code>Holds: 5x 10s Tense, 5s Relax</code>. Lines starting with # are ignored.</label>
-          <textarea class="code" x-model="pCode" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="60s Hip Stretches&#10;30s Overhead Triceps&#10;5x 10s Tense, 5s Relax"></textarea>
-          <div style="color:var(--danger);margin-top:8px;white-space:pre-line" x-show="pErrors.length" x-text="pErrors.join('\n')"></div>
-        </div></template>
-
-        <hr class="sep">
-        <div>
-          <label>Break between exercises (seconds, 0 = none)</label>
-          <input type="number" inputmode="numeric" min="0" step="5" x-model.number="pForm.breakSeconds" style="max-width:140px">
-        </div>
-
-        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.entries.length">
-          Total program: <strong x-text="fmt(programDuration(pForm.entries, pForm.breakSeconds))"></strong>
-        </div>
-
-        <div class="row editor-actions" style="margin-top:14px">
-          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.entries.length : !pCode.trim())">Save program</button>
-          <button class="btn ghost" x-show="editingProgram" @click="resetProgramForm()">Cancel</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Your programs</h2>
-        <template x-if="programs.length===0"><div class="empty">No programs yet. Create one above.</div></template>
+        <template x-if="programs.length===0"><div class="empty">No programs yet. Tap “+ New program” to create one.</div></template>
         <template x-for="p in programs" :key="p.id">
           <div class="list-item" style="cursor:pointer" @click="openProgram(p)">
             <div class="meta grow">
@@ -434,6 +368,136 @@
     </div>
   </template>
 
+  <!-- ============ PROGRAM EDITOR SCREEN ============ -->
+  <template x-if="showEditor">
+    <div class="runner sessionscreen" style="text-align:left">
+      <div class="session-inner">
+        <div class="session-top">
+          <button class="btn ghost sm" @click="closeEditor()">‹ Back</button>
+        </div>
+        <h2 class="session-title" style="margin-bottom:14px" x-text="editingProgram ? 'Edit program' : 'New program'"></h2>
+        <label>Program name</label>
+        <input x-model="pForm.name" placeholder="e.g. Morning Routine">
+
+        <div class="subtabs">
+          <button :class="{active:pMode==='visual'}" @click="setPMode('visual')">Visual</button>
+          <button :class="{active:pMode==='code'}" @click="setPMode('code')">Code</button>
+        </div>
+
+        <template x-if="pMode==='visual'"><div>
+          <label>Quick add (e.g. “60s Hip Stretches” or “5x 10s Tense, 5s Relax”)</label>
+          <div class="row">
+            <input class="grow" x-model="pQuick" @keydown.enter.prevent="quickAdd()" placeholder="60s Hip Stretches" autocapitalize="sentences">
+            <button class="btn primary" @click="quickAdd()" :disabled="!pQuick.trim()">Add</button>
+          </div>
+          <div style="color:var(--danger);margin-top:6px;font-size:13px" x-show="pQuickErr" x-text="pQuickErr"></div>
+
+          <template x-if="pForm.entries.length===0"><div class="muted" style="margin-top:10px">No exercises yet.</div></template>
+          <template x-for="(e, idx) in pForm.entries" :key="idx">
+            <div class="entry">
+              <div class="entry-head">
+                <span class="num" x-text="(idx+1)+'.'"></span>
+                <input class="grow" x-model="e.name" :placeholder="autoTitle(e)||'Exercise name'" style="padding:6px 9px">
+                <input class="sets" type="number" inputmode="numeric" min="1" x-model.number="e.sets" title="Sets" style="padding:6px 4px">
+                <span class="muted">×</span>
+              </div>
+              <template x-for="(ph, pi) in e.phases" :key="pi">
+                <div class="phase-row">
+                  <input class="secs" type="number" inputmode="decimal" min="0" step="1" x-model.number="ph.seconds" style="padding:6px 8px">
+                  <span class="muted" style="font-size:12px">s</span>
+                  <input class="grow" x-model="ph.name" placeholder="Phase name" style="padding:6px 9px">
+                  <button class="btn ghost sm icon" style="color:var(--muted)" x-show="e.phases.length>1" @click="e.phases.splice(pi,1)" aria-label="Remove phase">✕</button>
+                </div>
+              </template>
+              <div class="entry-foot">
+                <div class="row" style="gap:6px">
+                  <button class="btn ghost sm" @click="e.phases.push({name:'Rest',seconds:10,color:''})">+ Phase</button>
+                  <span class="muted" style="font-size:12px" x-text="fmt(timerDuration(e))"></span>
+                </div>
+                <div class="chip-btns">
+                  <button class="btn sm icon" @click="moveEntry(idx,-1)" :disabled="idx===0" aria-label="Move up">↑</button>
+                  <button class="btn sm icon" @click="moveEntry(idx,1)" :disabled="idx===pForm.entries.length-1" aria-label="Move down">↓</button>
+                  <button class="btn danger sm icon" @click="pForm.entries.splice(idx,1)" aria-label="Remove">✕</button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <button class="btn ghost" style="margin-top:10px;width:100%" @click="pForm.entries.push({name:'',sets:1,phases:[{name:'',seconds:30,color:''}]})">+ Add exercise</button>
+        </div></template>
+
+        <template x-if="pMode==='code'"><div>
+          <label>One exercise per line: <code>60s Hip Stretches</code>, <code>1m30s Plank</code>. Repeat phases with sets: <code>5x 10s Tense, 5s Relax</code>. Optional title: <code>Holds: 5x 10s Tense, 5s Relax</code>. Lines starting with # are ignored.</label>
+          <textarea class="code" x-model="pCode" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="60s Hip Stretches&#10;30s Overhead Triceps&#10;5x 10s Tense, 5s Relax"></textarea>
+          <div style="color:var(--danger);margin-top:8px;white-space:pre-line" x-show="pErrors.length" x-text="pErrors.join('\n')"></div>
+        </div></template>
+
+        <hr class="sep">
+        <div>
+          <label>Break between exercises (seconds, 0 = none)</label>
+          <input type="number" inputmode="numeric" min="0" step="5" x-model.number="pForm.breakSeconds" style="max-width:140px">
+        </div>
+
+        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.entries.length">
+          Total program: <strong x-text="fmt(programDuration(pForm.entries, pForm.breakSeconds))"></strong>
+        </div>
+
+        <div class="row editor-actions" style="margin-top:14px">
+          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.entries.length : !pCode.trim())">Save program</button>
+          <button class="btn ghost" @click="closeEditor()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ SETTINGS SCREEN ============ -->
+  <template x-if="showSettings">
+    <div class="runner sessionscreen" style="text-align:left">
+      <div class="session-inner">
+        <div class="session-top">
+          <button class="btn ghost sm" @click="showSettings=false; hush()">‹ Back</button>
+        </div>
+        <h2 class="session-title" style="margin-bottom:14px">Settings</h2>
+
+        <div class="card">
+          <h2>Voice announcements</h2>
+          <template x-if="!speechSupported()"><div class="muted">This browser can't speak.</div></template>
+          <template x-if="speechSupported()"><div>
+            <label class="check"><input type="checkbox" x-model="settings.voice" @change="saveSettings()"> Speak phases during a run</label>
+            <div :style="settings.voice ? '' : 'opacity:.5;pointer-events:none'">
+              <hr class="sep">
+              <label>Voice</label>
+              <select x-model="settings.voiceURI" @change="saveSettings(); testVoice()">
+                <option value="">System default</option>
+                <template x-for="v in voices" :key="v.uri">
+                  <option :value="v.uri" :selected="v.uri===settings.voiceURI" x-text="v.name+' ('+v.lang+')'"></option>
+                </template>
+              </select>
+
+              <div class="setting-range">
+                <label>Speed <span x-text="(+settings.rate).toFixed(2)+'×'"></span></label>
+                <input type="range" min="0.6" max="1.6" step="0.05" x-model.number="settings.rate" @change="saveSettings(); testVoice()">
+              </div>
+              <div class="setting-range">
+                <label>Pitch <span x-text="(+settings.pitch).toFixed(2)"></span></label>
+                <input type="range" min="0.5" max="1.5" step="0.05" x-model.number="settings.pitch" @change="saveSettings(); testVoice()">
+              </div>
+              <div class="setting-range">
+                <label>Volume <span x-text="Math.round(settings.volume*100)+'%'"></span></label>
+                <input type="range" min="0.1" max="1" step="0.05" x-model.number="settings.volume" @change="saveSettings(); testVoice()">
+              </div>
+
+              <hr class="sep">
+              <label class="check"><input type="checkbox" x-model="settings.heads" @change="saveSettings()"> Announce the next phase a few seconds early</label>
+              <label class="check" style="margin-top:10px"><input type="checkbox" x-model="settings.durations" @change="saveSettings()"> Include how long the next phase is</label>
+
+              <button class="btn ghost" style="margin-top:14px" @click="testVoice()">▶ Test voice</button>
+            </div>
+          </div></template>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <!-- ============ PROGRAM SESSION SCREEN ============ -->
   <template x-if="session && showSession && !run.active">
     <div class="runner sessionscreen">
@@ -508,7 +572,7 @@
           <template x-if="run.idx===0 && run.paused && run.pct===0">
             <div class="controls">
               <button class="btn green" style="font-size:16px;padding:14px 28px" @click="startRunFromPrep()">▶ Start</button>
-              <button class="btn ghost" @click="toggleVoice()" :aria-label="voiceOn ? 'Mute voice' : 'Unmute voice'" x-text="voiceOn ? '🔊' : '🔇'"></button>
+              <button class="btn ghost" @click="toggleVoice()" :aria-label="settings.voice ? 'Mute voice' : 'Unmute voice'" x-text="settings.voice ? '🔊' : '🔇'"></button>
               <button class="btn ghost" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Cancel'"></button>
             </div>
           </template>
@@ -518,7 +582,7 @@
             <div class="controls">
               <button class="btn ghost" @click="togglePause()" x-text="run.paused ? '▶ Resume' : '⏸ Pause'"></button>
               <button class="btn ghost" @click="skipPhase()">⏭ skip</button>
-              <button class="btn ghost" @click="toggleVoice()" :aria-label="voiceOn ? 'Mute voice' : 'Unmute voice'" x-text="voiceOn ? '🔊' : '🔇'"></button>
+              <button class="btn ghost" @click="toggleVoice()" :aria-label="settings.voice ? 'Mute voice' : 'Unmute voice'" x-text="settings.voice ? '🔊' : '🔇'"></button>
               <button class="btn danger" @click="exitRun()" x-text="run.returnTo==='session' ? '‹ Back' : 'Stop'"></button>
             </div>
           </template>
@@ -542,7 +606,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '2.3.0',
+    version: '2.4.0',
     timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
     programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
@@ -556,7 +620,10 @@ function app(){
     session: null,        // persistent in-progress program
     showSession: false,   // whether the program-run screen is open
     _tick:null, _audioCtx:null, _wakeLock:null,
-    voiceOn: true,        // speak phase names (Web Speech API)
+    showEditor: false, _editorSnap: '',
+    showSettings: false,
+    settings: { voice:true, voiceURI:'', rate:1.05, pitch:1, volume:1, heads:true, durations:true },
+    voices: [],           // [{uri,name,lang}] offered in settings
 
     // ---------- persistence ----------
     init(){
@@ -583,6 +650,9 @@ function app(){
         delete this.session.timerIds; delete this.session.labels; this.saveSession();
       }
       if(changed) this.save();
+      Object.assign(this.settings, this.load('it_settings', {}));
+      if(this.load('it_voice', null)===false && !localStorage.getItem(this._key('it_settings'))) this.settings.voice=false; // 2.3.0 toggle
+      if(this.speechSupported()){ this.loadVoices(); speechSynthesis.addEventListener?.('voiceschanged',()=>this.loadVoices()); }
     },
     // Old programs stored timerIds[] + labels[]; inline a copy of each timer as an entry.
     legacyEntries(ids,labels,timers){
@@ -800,10 +870,16 @@ function app(){
       if(!clean.entries.length){ alert('Add at least one exercise with a duration'); return; }
       if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
       else { clean.id=this.uid(); this.programs.push(clean); }
-      this.save(); this.resetProgramForm();
-      this.voiceOn=this.load('it_voice',true)!==false;
+      this.save(); this.resetProgramForm(); this.showEditor=false;
     },
-    editProgram(p){ this.resetProgramForm(); this.editingProgram=p.id; this.pForm={name:p.name,entries:JSON.parse(JSON.stringify(p.entries)),breakSeconds:p.breakSeconds||0}; window.scrollTo({top:0,behavior:'smooth'}); },
+    newProgram(){ this.resetProgramForm(); this._openEditor(); },
+    editProgram(p){ this.resetProgramForm(); this.editingProgram=p.id; this.pForm={name:p.name,entries:JSON.parse(JSON.stringify(p.entries)),breakSeconds:p.breakSeconds||0}; this._openEditor(); },
+    _editorState(){ return JSON.stringify([this.pForm,this.pMode,this.pCode]) },
+    _openEditor(){ this._editorSnap=this._editorState(); this.showEditor=true; },
+    closeEditor(){
+      if(this._editorState()!==this._editorSnap && !confirm('Discard your changes?')) return;
+      this.resetProgramForm(); this.showEditor=false;
+    },
     deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
     resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',entries:[],breakSeconds:0}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; this.pQuick=''; this.pQuickErr=''; },
 
@@ -964,7 +1040,7 @@ function app(){
           this.run.curSetPct=Math.min(100,(pip+(1-this.run.remaining/cur.seconds))/pps*100);
         }
         // announce what's next just before the countdown beeps; skipped on phases too short for it
-        if(!cur.announced && cur.seconds>=8 && this.run.remaining<=6.5 && this.run.remaining>4){
+        if(this.settings.heads && !cur.announced && cur.seconds>=8 && this.run.remaining<=6.5 && this.run.remaining>4){
           cur.announced=true;
           if(this.run.steps[this.run.idx+1]) this.say('Next: '+this.spokenStep(this.run.idx+1,true));
         }
@@ -1053,7 +1129,7 @@ function app(){
       if(newEx && st.name!==st.exTitle) parts.push(st.exTitle);
       parts.push(st.name);
       if(st.totalSets>1 && st.setNum>1 && st.phaseInSet===0) parts.push('set '+st.setNum+' of '+st.totalSets);
-      if(withDuration && st.seconds>=10) parts.push(this.spokenDuration(st.seconds));
+      if(withDuration && this.settings.durations && st.seconds>=10) parts.push(this.spokenDuration(st.seconds));
       return parts.join(', ');
     },
     spokenDuration(s){
@@ -1061,20 +1137,31 @@ function app(){
       const m=Math.floor(s/60), r=s%60;
       return [m ? m+(m===1?' minute':' minutes') : '', r ? r+' seconds' : ''].filter(Boolean).join(' ');
     },
-    say(text){
-      if(!this.voiceOn || !text || !('speechSynthesis' in window)) return;
+    speechSupported(){ return 'speechSynthesis' in window },
+    // Voices load asynchronously in most browsers; ones matching the device language come first.
+    loadVoices(){
+      const lang=(navigator.language||'en').slice(0,2).toLowerCase();
+      this.voices=speechSynthesis.getVoices()
+        .map(v=>({uri:v.voiceURI,name:v.name,lang:v.lang}))
+        .sort((a,b)=>(b.lang.toLowerCase().startsWith(lang))-(a.lang.toLowerCase().startsWith(lang)) || a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+    },
+    saveSettings(){ localStorage.setItem(this._key('it_settings'), JSON.stringify(this.settings)); },
+    say(text,force){
+      if(!(this.settings.voice||force) || !text || !this.speechSupported()) return;
       try{
         speechSynthesis.cancel(); // never let announcements queue up behind the clock
         const u=new SpeechSynthesisUtterance(text);
-        u.rate=1.05;
+        const v=this.settings.voiceURI && speechSynthesis.getVoices().find(x=>x.voiceURI===this.settings.voiceURI);
+        if(v){ u.voice=v; u.lang=v.lang; }
+        u.rate=+this.settings.rate||1; u.pitch=+this.settings.pitch||1; u.volume=+this.settings.volume||1;
         speechSynthesis.speak(u);
       }catch(e){}
     },
+    testVoice(){ this.say('Next: Plank'+(this.settings.durations?', 30 seconds':''), true); },
     hush(){ try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} },
     toggleVoice(){
-      this.voiceOn=!this.voiceOn;
-      localStorage.setItem(this._key('it_voice'), JSON.stringify(this.voiceOn));
-      if(this.voiceOn) this.say('Voice on'); else this.hush();
+      this.settings.voice=!this.settings.voice; this.saveSettings();
+      if(this.settings.voice) this.say('Voice on'); else this.hush();
     },
 
     // ---------- audio ----------
