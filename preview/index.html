@@ -443,7 +443,7 @@
           <span class="muted" x-text="sessionDoneCount()+' / '+session.entries.length"></span>
         </div>
         <h2 class="session-title" x-text="session.name"></h2>
-        <div class="muted" style="margin-bottom:10px">Tap an exercise to choose where to start.</div>
+        <div class="muted" style="margin-bottom:10px">Tap an exercise to choose where to start, or ▶ to run just that one.</div>
         <template x-if="!sessionAllDone()">
           <button class="btn green" style="width:100%;padding:14px;font-size:15px;margin:4px 0 6px" @click="startFromSelected()"
             x-text="sessionDoneCount() ? '▶ Continue from selected exercise' : '▶ Start from selected exercise'"></button>
@@ -456,6 +456,7 @@
               <div class="name" x-text="entryTitle(t)"></div>
               <div class="sub" x-text="entryLine(t, false)+' · '+fmt(timerDuration(t))"></div>
             </div>
+            <button class="btn green sm" @click.stop="startExercise(i)" style="min-width:40px;min-height:36px" :title="'Run only '+entryTitle(t)" aria-label="Run only this exercise">▶</button>
             <button class="btn ghost sm" @click.stop="toggleExDone(i)" style="min-width:40px;min-height:36px" :title="session.exDone[i] ? 'Mark as not done' : 'Mark as done without running'" x-text="session.exDone[i] ? '↺' : '✓'"></button>
           </div>
         </template>
@@ -539,7 +540,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '2.1.0',
+    version: '2.2.0',
     timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
     programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
@@ -866,6 +867,24 @@ function app(){
       this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)), exDone:[...this.session.exDone], names:this.session.entries.map(e=>this.entryTitle(e)) });
       this.save();
       this.session=null; this.saveSession(); this.showSession=false;
+    },
+
+    // Runs just this one exercise; it is marked done when it finishes.
+    startExercise(i){
+      const t=this.session.entries[i];
+      if(!t)return;
+      if(!this.sessionDoneCount()) this.session.startedTs=Date.now();
+      const name=this.entryTitle(t);
+      const steps=this.buildSteps(t,name);
+      this.run={
+        active:true, finished:false, paused:true, returnTo:'session',
+        steps, idx:0, remaining:steps[0].seconds,
+        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
+        upNext: this.upNextLabel(steps,0), pct:0, setPct:0, curSetPct:0,
+        setNum:0, totalSets:Math.max(1,t.sets||1),
+        label: name, logOnFinish:false, programId:this.session.programId, exIndex:i
+      };
+      this._startTick();
     },
 
     // Runs the selected exercise, then every not-yet-done one after it, back to back with
