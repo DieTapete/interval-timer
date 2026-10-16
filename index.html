@@ -96,8 +96,6 @@
 
   .pill { display: inline-block; background: var(--bg); border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px; font-size: 11px; color: var(--muted); margin: 2px 4px 2px 0; }
 
-  .phase-builder { display: grid; grid-template-columns: 1fr 110px 58px auto; gap: 8px; align-items: end; }
-  @media (max-width: 560px){ .phase-builder { grid-template-columns: 1fr 1fr 58px auto; } }
 
   /* Runner overlay */
   .runner {
@@ -150,14 +148,17 @@
   .timer-chip { display:flex; align-items:center; gap:8px; background: var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-top:8px; }
   .timer-chip .grab { cursor:default; }
   .timer-chip .num { min-width: 22px; color: var(--muted); font-weight: 700; }
+  .entry { background: var(--bg); border:1px solid var(--border); border-radius:12px; padding:10px; margin-top:10px; }
+  .entry-head { display:flex; align-items:center; gap:8px; }
+  .entry-head .sets { width:64px; flex:none; text-align:center; }
+  .phase-row { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .phase-row .secs { width:76px; flex:none; }
+  .entry-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; flex-wrap:wrap; }
   .chip-btns { display: flex; gap: 6px; }
   @media (max-width: 560px){
     /* 16px stops iOS from zooming on focus; bigger tap targets in the editors */
     input, select, textarea { font-size: 16px; }
-    .timer-chip { flex-wrap: wrap; }
-    .timer-chip .grow { flex-basis: calc(100% - 40px); }
-    .chip-btns { width: 100%; justify-content: flex-end; }
-    .chip-btns .btn, .subtabs button { min-height: 40px; min-width: 44px; }
+    .chip-btns .btn, .subtabs button, .phase-row .btn { min-height: 40px; min-width: 44px; }
     .editor-actions .btn { flex: 1; padding: 12px; }
     textarea.code { font-size: 15px; }
   }
@@ -173,7 +174,9 @@
   .session-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .session-title { font-size:26px; font-weight:800; margin-bottom:4px; }
   .ex-item { display:flex; align-items:center; gap:12px; background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:10px; }
+  .ex-item { cursor:pointer; }
   .ex-item.done { opacity:.6; }
+  .ex-item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); opacity:1; }
   .ex-item .ex-num { width:30px; height:30px; flex:0 0 30px; border-radius:50%; background: var(--surface-2); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; }
   .ex-item.done .ex-num { background: var(--accent-2); color:#08221a; }
   .ex-item .name { font-weight:700; font-size:15px; }
@@ -198,7 +201,6 @@
 
   <nav>
     <button :class="{active: tab==='programs'}" @click="tab='programs'">Programs</button>
-    <button :class="{active: tab==='timers'}" @click="tab='timers'">Timers</button>
     <button :class="{active: tab==='calendar'}" @click="tab='calendar'">Calendar</button>
   </nav>
 
@@ -207,88 +209,9 @@
     <div class="card resume-banner" @click="resumeSession()">
       <div class="grow">
         <div class="name" x-text="'▶ '+session.name"></div>
-        <div class="sub" x-text="sessionDoneCount()+' / '+session.timerIds.length+' exercises done — tap to resume'"></div>
+        <div class="sub" x-text="sessionDoneCount()+' / '+session.entries.length+' exercises done — tap to resume'"></div>
       </div>
       <button class="btn green sm" @click.stop="resumeSession()">Resume</button>
-    </div>
-  </template>
-
-  <!-- ============ TIMERS TAB ============ -->
-  <template x-if="tab==='timers'">
-    <div>
-      <div class="card">
-        <h2 x-text="editingTimer ? 'Edit timer' : 'New timer'"></h2>
-        <label>Name</label>
-        <input x-model="tForm.name" placeholder="e.g. Burpees">
-
-        <div style="margin-top:12px">
-          <label>Sets (the whole phase sequence repeats this many times)</label>
-          <input type="number" min="1" style="max-width:120px" x-model.number="tForm.sets">
-        </div>
-
-        <div style="margin-top:12px">
-          <label>Phases (one round)</label>
-          <template x-for="(ph, i) in tForm.phases" :key="i">
-            <div class="phase-builder" style="margin-top:8px">
-              <div>
-                <label x-show="i===0">Phase name</label>
-                <input x-model="ph.name" placeholder="Work / Rest">
-              </div>
-              <div>
-                <label x-show="i===0">Seconds</label>
-                <input type="number" min="0.1" step="0.1" x-model.number="ph.seconds">
-              </div>
-              <div>
-                <label x-show="i===0">Color</label>
-                <div style="display:flex;align-items:center;gap:3px;height:38px">
-                  <input type="color"
-                    :value="ph.color||'#4f8cff'"
-                    @change="ph.color=$event.target.value"
-                    :style="ph.color?'':'opacity:0.3'"
-                    style="width:36px;border-radius:8px">
-                  <button type="button" x-show="ph.color" class="btn icon danger" style="padding:3px 7px;font-size:10px" @click="ph.color=''">✕</button>
-                </div>
-              </div>
-              <button class="btn danger icon" @click="tForm.phases.splice(i,1)" x-show="tForm.phases.length>1">✕</button>
-            </div>
-          </template>
-          <button class="btn ghost sm" style="margin-top:10px" @click="tForm.phases.push({name:'Rest',seconds:5,color:''})">+ Add phase</button>
-        </div>
-
-        <div class="muted" style="margin-top:12px">
-          One round: <strong x-text="fmt(roundDuration(tForm))"></strong> ·
-          Total (<span x-text="tForm.sets||1"></span> sets): <strong x-text="fmt(timerDuration(tForm))"></strong>
-        </div>
-
-        <div class="row editor-actions" style="margin-top:14px">
-          <button class="btn primary" @click="saveTimer()">Save timer</button>
-          <button class="btn ghost" x-show="editingTimer" @click="resetTimerForm()">Cancel</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Saved timers</h2>
-        <template x-if="timers.length===0"><div class="empty">No timers yet. Create one above.</div></template>
-        <template x-for="t in timers" :key="t.id">
-          <div class="list-item">
-            <div class="meta grow">
-              <div class="name" x-text="t.name"></div>
-              <div class="sub">
-                <span class="pill" x-text="(t.sets||1)+' sets'"></span>
-                <template x-for="ph in t.phases" :key="ph.name+ph.seconds">
-                  <span class="pill" x-text="ph.name+' '+ph.seconds+'s'"></span>
-                </template>
-                · <span x-text="fmt(timerDuration(t))"></span>
-              </div>
-            </div>
-            <div class="row">
-              <button class="btn green sm" @click="runSingle(t)">▶</button>
-              <button class="btn sm" @click="editTimer(t)">Edit</button>
-              <button class="btn danger sm" @click="confirmId===t.id ? deleteTimer(t.id) : confirmId=t.id" @mouseleave="confirmId=null" x-text="confirmId===t.id?'Sure?':'Del'"></button>
-            </div>
-          </div>
-        </template>
-      </div>
     </div>
   </template>
 
@@ -306,77 +229,85 @@
         </div>
 
         <template x-if="pMode==='visual'"><div>
-        <label>Add timers to this program</label>
-        <div class="row">
-          <select class="grow" x-model="pForm.pick">
-            <option value="">— choose a timer —</option>
-            <template x-for="t in timers" :key="t.id">
-              <option :value="t.id" x-text="t.name+' ('+fmt(timerDuration(t))+')'"></option>
-            </template>
-          </select>
-          <button class="btn primary" @click="addTimerToProgram()" :disabled="!pForm.pick">Add</button>
-        </div>
-
-        <template x-if="pForm.timerIds.length===0"><div class="muted" style="margin-top:10px">No timers added yet.</div></template>
-        <template x-for="(tid, idx) in pForm.timerIds" :key="idx">
-          <div class="timer-chip">
-            <span class="num" x-text="(idx+1)+'.'"></span>
-            <div class="grow" style="min-width:0">
-              <input x-model="pForm.labels[idx]" :placeholder="timerName(tid)" style="padding:6px 9px">
-              <div class="muted" style="font-size:11px;margin-top:2px" x-text="(pForm.labels[idx] ? timerName(tid)+' · ' : '')+fmt(timerDurationById(tid))"></div>
-            </div>
-            <div class="chip-btns">
-              <button class="btn sm icon" @click="moveTimer(idx,-1)" :disabled="idx===0" aria-label="Move up">↑</button>
-              <button class="btn sm icon" @click="moveTimer(idx,1)" :disabled="idx===pForm.timerIds.length-1" aria-label="Move down">↓</button>
-              <button class="btn danger sm icon" @click="removeTimerFromProgram(idx)" aria-label="Remove">✕</button>
-            </div>
+          <label>Quick add (e.g. “60s Hip Stretches” or “5x 10s Tense, 5s Relax”)</label>
+          <div class="row">
+            <input class="grow" x-model="pQuick" @keydown.enter.prevent="quickAdd()" placeholder="60s Hip Stretches" autocapitalize="sentences">
+            <button class="btn primary" @click="quickAdd()" :disabled="!pQuick.trim()">Add</button>
           </div>
-        </template>
+          <div style="color:var(--danger);margin-top:6px;font-size:13px" x-show="pQuickErr" x-text="pQuickErr"></div>
 
+          <template x-if="pForm.entries.length===0"><div class="muted" style="margin-top:10px">No exercises yet.</div></template>
+          <template x-for="(e, idx) in pForm.entries" :key="idx">
+            <div class="entry">
+              <div class="entry-head">
+                <span class="num" x-text="(idx+1)+'.'"></span>
+                <input class="grow" x-model="e.name" :placeholder="autoTitle(e)||'Exercise name'" style="padding:6px 9px">
+                <input class="sets" type="number" inputmode="numeric" min="1" x-model.number="e.sets" title="Sets" style="padding:6px 4px">
+                <span class="muted">×</span>
+              </div>
+              <template x-for="(ph, pi) in e.phases" :key="pi">
+                <div class="phase-row">
+                  <input class="secs" type="number" inputmode="decimal" min="0" step="1" x-model.number="ph.seconds" style="padding:6px 8px">
+                  <span class="muted" style="font-size:12px">s</span>
+                  <input class="grow" x-model="ph.name" placeholder="Phase name" style="padding:6px 9px">
+                  <button class="btn ghost sm icon" style="color:var(--muted)" x-show="e.phases.length>1" @click="e.phases.splice(pi,1)" aria-label="Remove phase">✕</button>
+                </div>
+              </template>
+              <div class="entry-foot">
+                <div class="row" style="gap:6px">
+                  <button class="btn ghost sm" @click="e.phases.push({name:'Rest',seconds:10,color:''})">+ Phase</button>
+                  <span class="muted" style="font-size:12px" x-text="fmt(timerDuration(e))"></span>
+                </div>
+                <div class="chip-btns">
+                  <button class="btn sm icon" @click="moveEntry(idx,-1)" :disabled="idx===0" aria-label="Move up">↑</button>
+                  <button class="btn sm icon" @click="moveEntry(idx,1)" :disabled="idx===pForm.entries.length-1" aria-label="Move down">↓</button>
+                  <button class="btn danger sm icon" @click="pForm.entries.splice(idx,1)" aria-label="Remove">✕</button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <button class="btn ghost" style="margin-top:10px;width:100%" @click="pForm.entries.push({name:'',sets:1,phases:[{name:'',seconds:30,color:''}]})">+ Add exercise</button>
         </div></template>
 
         <template x-if="pMode==='code'"><div>
-          <label>One entry per line: <code>Name 30s</code>, <code>Plank 1m30s</code>. Use <code>@Timer name</code> (optionally <code>| Label</code>) for multi-phase timers. Lines starting with # are ignored.</label>
-          <textarea class="code" x-model="pCode" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Shoulder Stretch 60s&#10;Switch 10s&#10;Triceps Left 30s"></textarea>
+          <label>One exercise per line: <code>60s Hip Stretches</code>, <code>1m30s Plank</code>. Repeat phases with sets: <code>5x 10s Tense, 5s Relax</code>. Optional title: <code>Holds: 5x 10s Tense, 5s Relax</code>. Lines starting with # are ignored.</label>
+          <textarea class="code" x-model="pCode" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="60s Hip Stretches&#10;30s Overhead Triceps&#10;5x 10s Tense, 5s Relax"></textarea>
           <div style="color:var(--danger);margin-top:8px;white-space:pre-line" x-show="pErrors.length" x-text="pErrors.join('\n')"></div>
         </div></template>
 
         <hr class="sep">
-        <label class="check"><input type="checkbox" x-model="pForm.continuous"> Run continuously (no stop between timers)</label>
-        <div x-show="pForm.continuous" style="margin-top:10px">
-          <label>Break between timers (seconds, 0 = none)</label>
+        <div>
+          <label>Break between exercises (seconds, 0 = none)</label>
           <input type="number" inputmode="numeric" min="0" step="5" x-model.number="pForm.breakSeconds" style="max-width:140px">
         </div>
 
-        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.timerIds.length">
-          Total program: <strong x-text="fmt(programDuration(pForm.timerIds, pForm.continuous ? pForm.breakSeconds : 0))"></strong>
+        <div class="muted" style="margin-top:12px" x-show="pMode==='visual' && pForm.entries.length">
+          Total program: <strong x-text="fmt(programDuration(pForm.entries, pForm.breakSeconds))"></strong>
         </div>
 
         <div class="row editor-actions" style="margin-top:14px">
-          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.timerIds.length : !pCode.trim())">Save program</button>
+          <button class="btn primary" @click="saveProgram()" :disabled="!pForm.name || (pMode==='visual' ? !pForm.entries.length : !pCode.trim())">Save program</button>
           <button class="btn ghost" x-show="editingProgram" @click="resetProgramForm()">Cancel</button>
         </div>
       </div>
 
       <div class="card">
         <h2>Your programs</h2>
-        <template x-if="programs.length===0"><div class="empty">No programs yet. Build one from your timers.</div></template>
+        <template x-if="programs.length===0"><div class="empty">No programs yet. Create one above.</div></template>
         <template x-for="p in programs" :key="p.id">
-          <div class="list-item">
+          <div class="list-item" style="cursor:pointer" @click="openProgram(p)">
             <div class="meta grow">
               <div class="name" x-text="p.name"></div>
               <div class="sub">
-                <span x-text="p.timerIds.length+' timers'"></span> ·
-                <span x-text="fmt(programDuration(p.timerIds, p.continuous ? p.breakSeconds : 0))"></span> ·
-                <span x-show="p.continuous">continuous ·</span>
+                <span x-text="p.entries.length+' exercises'"></span> ·
+                <span x-text="fmt(programDuration(p.entries, p.breakSeconds))"></span> ·
+                <span x-show="session && session.programId===p.id && sessionDoneCount()" style="color:var(--accent-2)">in progress ·</span>
                 <span x-text="completionCount(p.id)+'× done'"></span>
               </div>
             </div>
             <div class="row">
-              <button class="btn green sm" x-show="!(session && session.programId===p.id)" @click="startProgram(p)">▶ Start</button>
-              <button class="btn green sm" x-show="session && session.programId===p.id" @click="resumeSession()">↻ Resume</button>
-              <button class="btn sm" @click="editProgram(p)">Edit</button>
-              <button class="btn danger sm" @click="confirmId===p.id ? deleteProgram(p.id) : confirmId=p.id" @mouseleave="confirmId=null" x-text="confirmId===p.id?'Sure?':'Del'"></button>
+              <button class="btn sm" @click.stop="editProgram(p)">Edit</button>
+              <button class="btn danger sm" @click.stop="confirmId===p.id ? deleteProgram(p.id) : confirmId=p.id" @mouseleave="confirmId=null" x-text="confirmId===p.id?'Sure?':'Del'"></button>
             </div>
           </div>
         </template>
@@ -509,25 +440,24 @@
       <div class="session-inner">
         <div class="session-top">
           <button class="btn ghost sm" @click="minimizeSession()">‹ Back to app</button>
-          <span class="muted" x-text="sessionDoneCount()+' / '+session.timerIds.length"></span>
+          <span class="muted" x-text="sessionDoneCount()+' / '+session.entries.length"></span>
         </div>
         <h2 class="session-title" x-text="session.name"></h2>
-        <div class="muted" style="margin-bottom:10px" x-show="!session.continuous">Start each exercise when you're ready.</div>
-        <template x-if="session.continuous && !sessionAllDone()">
-          <button class="btn green" style="width:100%;padding:14px;font-size:15px;margin:4px 0 6px" @click="startContinuous()"
-            x-text="sessionDoneCount() ? '▶ Continue from next exercise' : '▶ Run whole program'"></button>
+        <div class="muted" style="margin-bottom:10px">Tap an exercise to choose where to start, or ▶ to run just that one.</div>
+        <template x-if="!sessionAllDone()">
+          <button class="btn green" style="width:100%;padding:14px;font-size:15px;margin:4px 0 6px" @click="startFromSelected()"
+            x-text="sessionDoneCount() ? '▶ Continue from selected exercise' : '▶ Start from selected exercise'"></button>
         </template>
 
-        <template x-for="(t, i) in sessionTimers()" :key="i">
-          <div class="ex-item" :class="{done: session.exDone[i]}">
+        <template x-for="(t, i) in session.entries" :key="i">
+          <div class="ex-item" :class="{done: session.exDone[i], selected: selEx===i}" @click="selEx=i">
             <div class="ex-num" x-text="session.exDone[i] ? '✓' : (i+1)"></div>
             <div class="grow">
-              <div class="name" x-text="entryName(t.id, session.labels && session.labels[i])"></div>
-              <div class="sub" x-text="(entryName(t.id, session.labels && session.labels[i])!==t.name ? t.name+' · ' : '')+(t.sets||1)+' sets · '+fmt(timerDuration(t))"></div>
+              <div class="name" x-text="entryTitle(t)"></div>
+              <div class="sub" x-text="entryLine(t, false)+' · '+fmt(timerDuration(t))"></div>
             </div>
-            <button class="btn green sm" x-show="!session.exDone[i]" @click="startExercise(i)">▶ Start</button>
-            <button class="btn ghost sm" x-show="!session.exDone[i]" @click="markExDone(i)" style="padding:0 10px" title="Mark as done without running">✓</button>
-            <button class="btn ghost sm" x-show="session.exDone[i]" @click="startExercise(i)">Redo</button>
+            <button class="btn green sm" @click.stop="startExercise(i)" style="min-width:40px;min-height:36px" :title="'Run only '+entryTitle(t)" aria-label="Run only this exercise">▶</button>
+            <button class="btn ghost sm" @click.stop="toggleExDone(i)" style="min-width:40px;min-height:36px" :title="session.exDone[i] ? 'Mark as not done' : 'Mark as done without running'" x-text="session.exDone[i] ? '↺' : '✓'"></button>
           </div>
         </template>
 
@@ -610,14 +540,15 @@
 function app(){
   return {
     tab: 'programs',
-    version: '1.14.0',
-    timers: [], programs: [], log: [],
+    version: '2.2.0',
+    timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
+    programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
 
-    editingTimer: null, editingProgram: null, confirmId: null, calDetail: null,
-    tForm: { name:'', sets:1, phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}] },
-    pForm: { name:'', timerIds:[], labels:[], pick:'', continuous:false, breakSeconds:0 },
-    pMode: 'visual', pCode: '', pErrors: [],
+    editingProgram: null, confirmId: null, calDetail: null,
+    pForm: { name:'', entries:[], breakSeconds:0 },
+    selEx: 0,             // exercise selected on the program overview
+    pMode: 'visual', pCode: '', pErrors: [], pQuick: '', pQuickErr: '',
 
     run: { active:false },
     session: null,        // persistent in-progress program
@@ -642,17 +573,45 @@ function app(){
       this.programs = this.load('it_programs', []);
       this.log = this.load('it_log', []);
       this.session = this.load('it_session', null);
+      // migrate 1.x programs (references to saved timers) to inline entries
+      this.programs.forEach(p=>{ if(this.migrateProgram(p,this.timers)) changed=true; });
+      if(this.session && this.session.timerIds){
+        this.session.entries=this.legacyEntries(this.session.timerIds,this.session.labels,this.timers);
+        delete this.session.timerIds; delete this.session.labels; this.saveSession();
+      }
       if(changed) this.save();
     },
-    load(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+    // Old programs stored timerIds[] + labels[]; inline a copy of each timer as an entry.
+    legacyEntries(ids,labels,timers){
+      return (ids||[]).map((id,i)=>{
+        const t=timers.find(x=>x.id===id); if(!t) return null;
+        const e={name:'',sets:Math.max(1,t.sets||1),phases:t.phases.map(p=>({name:p.name,seconds:p.seconds,color:p.color||''}))};
+        const name=((labels&&labels[i])||'').trim()||t.name;
+        if(name!==this.autoTitle(e)) e.name=name;
+        return e;
+      }).filter(Boolean);
+    },
+    migrateProgram(p,timers){
+      if(!p.timerIds) return false;
+      p.entries=this.legacyEntries(p.timerIds,p.labels,timers);
+      delete p.timerIds; delete p.labels; return true;
+    },
+    // A copy served under /preview/ keeps its own storage (seeded from the live app's) so trying it can't touch real data.
+    _key(k){ return location.pathname.includes('/preview/') ? 'preview_'+k : k },
+    load(k,d){
+      try{
+        const own=localStorage.getItem(this._key(k));
+        return JSON.parse(own!==null ? own : localStorage.getItem(k)) ?? d;
+      }catch(e){ return d }
+    },
     save(){
-      localStorage.setItem('it_timers', JSON.stringify(this.timers));
-      localStorage.setItem('it_programs', JSON.stringify(this.programs));
-      localStorage.setItem('it_log', JSON.stringify(this.log));
+      localStorage.setItem(this._key('it_timers'), JSON.stringify(this.timers));
+      localStorage.setItem(this._key('it_programs'), JSON.stringify(this.programs));
+      localStorage.setItem(this._key('it_log'), JSON.stringify(this.log));
     },
     saveSession(){
-      if(this.session) localStorage.setItem('it_session', JSON.stringify(this.session));
-      else localStorage.removeItem('it_session');
+      if(this.session) localStorage.setItem(this._key('it_session'), JSON.stringify(this.session));
+      else localStorage.setItem(this._key('it_session'),'null');
     },
     uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) },
 
@@ -734,80 +693,78 @@ function app(){
     // ---------- timer logic ----------
     roundDuration(t){ return (t.phases||[]).reduce((a,p)=>a+(p.seconds||0),0) },
     timerDuration(t){ return this.roundDuration(t)*Math.max(1,t.sets||1) },
-    timerDurationById(id){ const t=this.timers.find(x=>x.id===id); return t?this.timerDuration(t):0 },
-    programDuration(ids,breakSec){ const valid=ids.filter(id=>this.timers.find(x=>x.id===id)); return valid.reduce((a,id)=>a+this.timerDurationById(id),0)+Math.max(0,valid.length-1)*Math.max(0,+breakSec||0) },
-    timerName(id){ const t=this.timers.find(x=>x.id===id); return t?t.name:'(deleted)' },
-    // per-program label overrides the timer's own name; labels[] is parallel to timerIds[]
-    entryName(id,label){ return (label&&label.trim()) || this.timerName(id) },
+    programDuration(entries,breakSec){ return entries.reduce((a,e)=>a+this.timerDuration(e),0)+Math.max(0,entries.length-1)*Math.max(0,+breakSec||0) },
+    // legacy (1.x) log entries reference saved timers by id
+    entryName(id,label){ const t=this.timers.find(x=>x.id===id); return (label&&label.trim()) || (t?t.name:'(deleted)') },
 
-    saveTimer(){
-      if(!this.tForm.name.trim()) { alert('Give the timer a name'); return }
-      const clean = JSON.parse(JSON.stringify(this.tForm));
-      clean.sets = Math.max(1, +clean.sets || 1);
-      clean.phases = clean.phases.filter(p=>p.seconds>0).map(p=>({name:p.name||'Phase',seconds:+p.seconds,color:p.color||''}));
-      if(!clean.phases.length){ alert('Add at least one phase'); return }
-      if(this.editingTimer){ const i=this.timers.findIndex(x=>x.id===this.editingTimer); clean.id=this.editingTimer; this.timers[i]=clean; }
-      else { clean.id=this.uid(); this.timers.push(clean); }
-      this.save(); this.resetTimerForm();
+    // ---------- program entries ----------
+    // An entry is { name, sets, phases:[{name,seconds,color}] }. Empty name -> title derived from phases.
+    autoTitle(e){ return [...new Set(e.phases.map(p=>(p.name||'').trim()).filter(Boolean))].join(' / ') },
+    entryTitle(e){ return (e.name||'').trim() || this.autoTitle(e) || 'Exercise' },
+    // under 2 minutes stays in seconds ("90s"), longer becomes "2m" / "2m30s"
+    fmtCompact(sec){ sec=Math.round(sec*10)/10; if(sec<120) return sec+'s'; const m=Math.floor(sec/60), r=Math.round((sec-m*60)*10)/10; return m+'m'+(r?r+'s':''); },
+    // "5x 10s Tense, 5s Relax" (withTitle adds "Title: " when the name isn't the derived one)
+    entryLine(e,withTitle=true){
+      const body=((e.sets||1)>1?e.sets+'x ':'')+e.phases.map(p=>this.fmtCompact(p.seconds)+(p.name?' '+p.name:'')).join(', ');
+      const n=(e.name||'').trim();
+      return (withTitle && n && n!==this.autoTitle(e) ? n+': ' : '')+body;
     },
-    editTimer(t){ this.editingTimer=t.id; this.tForm=JSON.parse(JSON.stringify(t)); window.scrollTo({top:0,behavior:'smooth'}); },
-    deleteTimer(id){ this.timers=this.timers.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
-    resetTimerForm(){ this.editingTimer=null; this.tForm={name:'',sets:1,phases:[{name:'Work',seconds:30,color:''},{name:'Rest',seconds:10,color:''}]}; },
-
-    // ---------- program logic ----------
-    addTimerToProgram(){ if(this.pForm.pick){ this.pForm.timerIds.push(this.pForm.pick); this.pForm.labels.push(''); this.pForm.pick=''; } },
-    // "Name 30s" / "Name 1m" / "Name 1m30s" -> {name, seconds}; null if the line doesn't parse
-    parseTextLine(line){
-      const m=line.trim().match(/^(.*?)[\s:,\-–]*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?)?\s*(?:(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?)?$/i);
-      if(!m) return null;
-      const seconds=(m[2]?+m[2]*60:0)+(m[3]?+m[3]:0);
-      const name=m[1].trim();
-      return (name && seconds>0) ? {name,seconds} : null;
+    // "90s" / "1m30s" / "1.5m" / "2m" -> seconds, else null
+    parseDur(tok){
+      const m=/^(?:(\d+(?:\.\d+)?)m(?:in)?)?(?:(\d+(?:\.\d+)?)s(?:ec)?)?$/i.exec(tok);
+      if(!m||(!m[1]&&!m[2])) return null;
+      const s=(m[1]?+m[1]*60:0)+(m[2]?+m[2]:0);
+      return s>0?s:null;
     },
-    // Program <-> text. Simple timers (1 set, 1 phase) are "Label 30s"; others are "@Timer name | Label".
-    isSimpleTimer(t){ return (t.sets||1)===1 && t.phases.length===1; },
-    fmtCompact(sec){ const m=Math.floor(sec/60), r=sec%60; return (m?m+'m':'')+(r||!m?r+'s':''); },
-    programToCode(){
-      return this.pForm.timerIds.map((id,i)=>{
-        const t=this.timers.find(x=>x.id===id); if(!t) return '# (missing timer)';
-        const label=(this.pForm.labels[i]||'').trim();
-        if(this.isSimpleTimer(t)) return (label||t.name)+' '+this.fmtCompact(t.phases[0].seconds);
-        return '@'+t.name+(label?' | '+label:'');
-      }).join('\n');
+    // "10s Tense" or "Tense 10s" (also "1m 30s Plank")
+    parsePhase(str){
+      const t=str.trim().split(/\s+/).filter(Boolean);
+      const tries=[[2,true],[1,true],[2,false],[1,false]];
+      for(const [n,front] of tries){
+        if(t.length<n) continue;
+        const durToks=front?t.slice(0,n):t.slice(t.length-n);
+        const sec=this.parseDur(durToks.join(''));
+        if(sec!=null) return {name:(front?t.slice(n):t.slice(0,t.length-n)).join(' '),seconds:sec,color:''};
+      }
+      return null;
     },
-    // Parses code into {ids, labels, newTimers, errors}; does not touch state.
+    // one line -> entry, or a string describing the problem
+    parseEntryLine(line){
+      let title='', body=line.trim();
+      const c=body.indexOf(':');
+      if(c>0){ const r=this.parseEntryBody(body.slice(c+1)); if(r) { title=body.slice(0,c).trim(); return {...r,name:title}; } }
+      return this.parseEntryBody(body) || 'expected e.g. "60s Hip Stretches" or "5x 10s Tense, 5s Relax"';
+    },
+    parseEntryBody(body){
+      let sets=1;
+      const m=/^\s*(\d+)\s*[x×]\s+(.*)$/i.exec(body);
+      if(m){ sets=+m[1]; body=m[2]; }
+      if(sets<1) return null;
+      const phases=body.split(',').map(p=>p.trim()).filter(Boolean).map(p=>this.parsePhase(p));
+      if(!phases.length||phases.some(p=>!p)) return null;
+      return {name:'',sets,phases};
+    },
+    programToCode(){ return this.pForm.entries.map(e=>this.entryLine(e)).join('\n') },
+    // Parses code into {entries, errors}; does not touch state.
     parseProgramCode(code){
-      const ids=[], labels=[], newTimers=[], errors=[];
-      const known={}; // "text|seconds" -> {id,label} from entries already in the form
-      this.pForm.timerIds.forEach((id,i)=>{
-        const t=this.timers.find(x=>x.id===id);
-        if(t && this.isSimpleTimer(t)){ const l=(this.pForm.labels[i]||'').trim(); known[(l||t.name)+'|'+t.phases[0].seconds]={id,label:l}; }
-      });
+      const entries=[], errors=[];
       code.split('\n').forEach((raw,n)=>{
         const line=raw.trim(); if(!line||line.startsWith('#')) return;
-        if(line.startsWith('@')){
-          const [nm,...rest]=line.slice(1).split('|');
-          const t=this.timers.find(x=>x.name.toLowerCase()===nm.trim().toLowerCase());
-          if(!t){ errors.push('Line '+(n+1)+': no timer named "'+nm.trim()+'"'); return; }
-          ids.push(t.id); labels.push(rest.join('|').trim()); return;
-        }
-        const p=this.parseTextLine(line);
-        if(!p){ errors.push('Line '+(n+1)+': expected "Name 30s" — '+line); return; }
-        const k=known[p.name+'|'+p.seconds];
-        if(k){ ids.push(k.id); labels.push(k.label); return; }
-        let t=[...this.timers,...newTimers].find(x=>x.name===p.name && this.isSimpleTimer(x) && x.phases[0].seconds===p.seconds);
-        if(!t){ t={id:this.uid(),name:p.name,sets:1,phases:[{name:p.name,seconds:p.seconds,color:''}]}; newTimers.push(t); }
-        ids.push(t.id); labels.push('');
+        const r=this.parseEntryLine(line);
+        if(typeof r==='string') errors.push('Line '+(n+1)+': '+r+' — '+line); else entries.push(r);
       });
-      return {ids,labels,newTimers,errors};
+      return {entries,errors};
     },
-    // Applies pCode to pForm (creating timers as needed). Returns false on parse errors.
+    // Applies pCode to pForm. Phase colours survive when the phase at the same spot keeps its name.
     applyProgramCode(){
       const r=this.parseProgramCode(this.pCode);
       this.pErrors=r.errors;
       if(r.errors.length) return false;
-      if(r.newTimers.length){ this.timers.push(...r.newTimers); this.save(); }
-      this.pForm.timerIds=r.ids; this.pForm.labels=r.labels;
+      r.entries.forEach((e,i)=>e.phases.forEach((p,j)=>{
+        const old=this.pForm.entries[i]&&this.pForm.entries[i].phases[j];
+        if(old&&old.name===p.name) p.color=old.color||'';
+      }));
+      this.pForm.entries=r.entries;
       return true;
     },
     setPMode(mode){
@@ -815,38 +772,52 @@ function app(){
       if(mode==='code'){ this.pCode=this.programToCode(); this.pErrors=[]; this.pMode='code'; }
       else if(this.applyProgramCode()) this.pMode='visual';
     },
-    removeTimerFromProgram(i){ this.pForm.timerIds.splice(i,1); this.pForm.labels.splice(i,1); },
-    moveTimer(i,dir){
-      const j=i+dir; if(j<0||j>=this.pForm.timerIds.length)return;
-      for(const a of [this.pForm.timerIds,this.pForm.labels]) [a[i],a[j]]=[a[j],a[i]];
+    quickAdd(){
+      const lines=this.pQuick.split('\n').map(l=>l.trim()).filter(Boolean);
+      const parsed=lines.map(l=>this.parseEntryLine(l));
+      const bad=parsed.find(p=>typeof p==='string');
+      if(bad){ this.pQuickErr=bad; return; }
+      this.pForm.entries.push(...parsed); this.pQuick=''; this.pQuickErr='';
+    },
+    moveEntry(i,dir){
+      const j=i+dir, a=this.pForm.entries; if(j<0||j>=a.length)return;
+      [a[i],a[j]]=[a[j],a[i]];
+    },
+    cleanEntries(entries){
+      return entries.map(e=>({
+        name:(e.name||'').trim(), sets:Math.max(1,Math.round(+e.sets||1)),
+        phases:e.phases.filter(p=>+p.seconds>0).map(p=>({name:(p.name||'').trim(),seconds:+p.seconds,color:p.color||''}))
+      })).filter(e=>e.phases.length);
     },
     saveProgram(){
       if(this.pMode==='code' && !this.applyProgramCode()) return;
-      const clean={ name:this.pForm.name.trim(), timerIds:[...this.pForm.timerIds], labels:this.pForm.timerIds.map((_,i)=>(this.pForm.labels[i]||'').trim()),
-        continuous:!!this.pForm.continuous, breakSeconds:this.pForm.continuous?Math.max(0,Math.round(+this.pForm.breakSeconds||0)):0 };
-      if(!clean.name||!clean.timerIds.length)return;
+      const clean={ name:this.pForm.name.trim(), entries:this.cleanEntries(this.pForm.entries),
+        breakSeconds:Math.max(0,Math.round(+this.pForm.breakSeconds||0)) };
+      if(!clean.name){ alert('Give the program a name'); return; }
+      if(!clean.entries.length){ alert('Add at least one exercise with a duration'); return; }
       if(this.editingProgram){ const i=this.programs.findIndex(x=>x.id===this.editingProgram); clean.id=this.editingProgram; this.programs[i]=clean; }
       else { clean.id=this.uid(); this.programs.push(clean); }
       this.save(); this.resetProgramForm();
     },
-    editProgram(p){ this.pMode='visual'; this.pErrors=[]; this.editingProgram=p.id; this.pForm={name:p.name,timerIds:[...p.timerIds],labels:p.timerIds.map((_,i)=>(p.labels&&p.labels[i])||''),pick:'',continuous:!!p.continuous,breakSeconds:p.breakSeconds||0}; window.scrollTo({top:0,behavior:'smooth'}); },
+    editProgram(p){ this.resetProgramForm(); this.editingProgram=p.id; this.pForm={name:p.name,entries:JSON.parse(JSON.stringify(p.entries)),breakSeconds:p.breakSeconds||0}; window.scrollTo({top:0,behavior:'smooth'}); },
     deleteProgram(id){ this.programs=this.programs.filter(x=>x.id!==id); this.confirmId=null; this.save(); },
-    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',timerIds:[],labels:[],pick:'',continuous:false,breakSeconds:0}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; },
+    resetProgramForm(){ this.editingProgram=null; this.pForm={name:'',entries:[],breakSeconds:0}; this.pMode='visual'; this.pCode=''; this.pErrors=[]; this.pQuick=''; this.pQuickErr=''; },
 
     // ---------- build run steps (single exercise/timer) ----------
     buildSteps(timer,displayName){
       const title=displayName||timer.name;
       const sets=Math.max(1,timer.sets||1);
       const pps=timer.phases.length;
-      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:'Starting',setNum:0,phaseInSet:0,phasesPerSet:pps,totalSets:sets,color:''}];
+      const steps=[{name:'Get ready',seconds:3,kind:'prep',ctx:title,exTitle:title,setNum:0,phaseInSet:0,phasesPerSet:pps,totalSets:sets,color:''}];
       for(let s=1;s<=sets;s++){
         timer.phases.forEach((ph,i)=>{
-          const isRest=/rest|pause|break/i.test(ph.name);
+          const isRest=/rest|pause|break|relax|recover/i.test(ph.name);
           steps.push({
-            name: ph.name,
+            name: ph.name||title,
             seconds: ph.seconds,
             kind: isRest?'rest':'work',
             ctx: title+(sets>1?' · set '+s+'/'+sets:''),
+            exTitle: title,
             setNum: s,
             phaseInSet: i,
             phasesPerSet: pps,
@@ -858,81 +829,76 @@ function app(){
       return steps;
     },
 
-    // ---------- single timer quick run (from Timers tab) ----------
-    runSingle(timer){
-      const steps=this.buildSteps(timer);
-      const totalSets=Math.max(1,timer.sets||1);
-      this.run={
-        active:true, finished:false, paused:true, returnTo:'app',
-        steps, idx:0, remaining:steps[0].seconds,
-        kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
-        setNum:0, totalSets,
-        label: timer.name, logOnFinish:true, programId:null, exIndex:null
-      };
-      this._startTick();
-    },
-
     // ---------- program session ----------
-    startProgram(p){
-      const list=p.timerIds.map(id=>this.timers.find(t=>t.id===id)).filter(Boolean);
-      if(!list.length){ alert('This program has no valid timers.'); return; }
-      if(this.session && this.session.programId!==p.id){
-        if(!confirm(`"${this.session.name}" is still in progress. Abandon it and start "${p.name}"?`)) return;
+    // Opens the program overview, creating a session for it unless one is already running.
+    openProgram(p){
+      if(this.session && this.session.programId===p.id){ this.resumeSession(); return; }
+      if(!p.entries.length){ alert('This program has no exercises.'); return; }
+      if(this.session && this.sessionDoneCount()){
+        if(!confirm(`"${this.session.name}" is still in progress. Abandon it and open "${p.name}"?`)) return;
       }
-      const keep=p.timerIds.map((id,i)=>({id,label:(p.labels&&p.labels[i])||''})).filter(e=>this.timers.find(t=>t.id===e.id));
       this.session={
         programId:p.id, name:p.name,
-        timerIds:keep.map(e=>e.id),
-        labels:keep.map(e=>e.label),
-        exDone:keep.map(()=>false),
-        continuous:!!p.continuous, breakSeconds:p.breakSeconds||0,
+        entries:JSON.parse(JSON.stringify(p.entries)),
+        exDone:p.entries.map(()=>false),
+        breakSeconds:p.breakSeconds||0,
         startedTs: Date.now(), lastExerciseTs: null
       };
       this.saveSession();
-      this.showSession=true;
-      if(this.session.continuous) this.startContinuous();
+      this.resumeSession();
     },
-    resumeSession(){ this.showSession=true; },
-    minimizeSession(){ this.showSession=false; },   // back to main app, session kept
-    sessionTimers(){ return (this.session?.timerIds||[]).map(id=>this.timers.find(t=>t.id===id)).filter(Boolean); },
+    resumeSession(){ if(!this.session) return; this.selEx=this.firstOpenEx(); this.showSession=true; },
+    firstOpenEx(){ const i=this.session.exDone.findIndex(d=>!d); return i<0?0:i; },
+    // back to main app; a session with nothing done yet is just a peek and gets dropped
+    minimizeSession(){
+      this.showSession=false;
+      if(this.session && !this.sessionDoneCount()){ this.session=null; this.saveSession(); }
+    },
+    toggleExDone(i){
+      this.session.exDone[i]=!this.session.exDone[i];
+      if(this.session.exDone[i]) this.session.lastExerciseTs=Date.now();
+      this.saveSession();
+      if(this.session.exDone[this.selEx]) this.selEx=this.firstOpenEx();
+    },
     sessionAllDone(){ return this.session && this.session.exDone.length>0 && this.session.exDone.every(Boolean); },
     sessionDoneCount(){ return this.session? this.session.exDone.filter(Boolean).length : 0; },
-    markExDone(i){ this.session.exDone[i]=true; this.session.lastExerciseTs=Date.now(); this.saveSession(); },
     logPartialSession(){
       const ts=this.session.lastExerciseTs||Date.now();
-      this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)), exDone:[...this.session.exDone], timerIds:[...this.session.timerIds], labels:[...(this.session.labels||[])] });
+      this.log.push({ ts, programId:this.session.programId, name:this.session.name, date:this._dateKey(new Date(ts)), exDone:[...this.session.exDone], names:this.session.entries.map(e=>this.entryTitle(e)) });
       this.save();
       this.session=null; this.saveSession(); this.showSession=false;
     },
 
+    // Runs just this one exercise; it is marked done when it finishes.
     startExercise(i){
-      const t=this.timers.find(x=>x.id===this.session.timerIds[i]);
+      const t=this.session.entries[i];
       if(!t)return;
-      const name=this.entryName(t.id,this.session.labels&&this.session.labels[i]);
+      if(!this.sessionDoneCount()) this.session.startedTs=Date.now();
+      const name=this.entryTitle(t);
       const steps=this.buildSteps(t,name);
-      const totalSets=Math.max(1,t.sets||1);
       this.run={
         active:true, finished:false, paused:true, returnTo:'session',
         steps, idx:0, remaining:steps[0].seconds,
         kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
-        setNum:0, totalSets,
+        upNext: this.upNextLabel(steps,0), pct:0, setPct:0, curSetPct:0,
+        setNum:0, totalSets:Math.max(1,t.sets||1),
         label: name, logOnFinish:false, programId:this.session.programId, exIndex:i
       };
       this._startTick();
     },
 
-    // Runs every not-yet-done exercise back to back, with optional breaks in between.
-    // Each exercise is marked done as soon as its last step completes.
-    startContinuous(){
-      const todo=this.session.timerIds.map((id,i)=>i).filter(i=>!this.session.exDone[i] && this.timers.find(t=>t.id===this.session.timerIds[i]));
+    // Runs the selected exercise, then every not-yet-done one after it, back to back with
+    // optional breaks in between. Each exercise is marked done as soon as its last step completes.
+    startFromSelected(){
+      const sel=this.selEx;
+      const todo=this.session.entries.map((e,i)=>i).filter(i=>i===sel || (i>sel && !this.session.exDone[i]));
       if(!todo.length) return;
+      if(!this.sessionDoneCount()) this.session.startedTs=Date.now();
       const brk=this.session.breakSeconds||0;
       const steps=[];
       todo.forEach((i,k)=>{
-        const t=this.timers.find(x=>x.id===this.session.timerIds[i]);
-        const name=this.entryName(t.id,this.session.labels&&this.session.labels[i]);
+        const t=this.session.entries[i];
+        const name=this.entryTitle(t);
         const ex=this.buildSteps(t,name).slice(k===0?0:1).map(st=>({...st,exIndex:i}));
         ex[ex.length-1].lastOfEx=true;
         if(k>0 && brk>0){
@@ -940,12 +906,12 @@ function app(){
         }
         steps.push(...ex);
       });
-      const first=this.session.timerIds[todo[0]], t0=this.timers.find(x=>x.id===first);
+      const t0=this.session.entries[todo[0]];
       this.run={
         active:true, finished:false, paused:true, returnTo:'session',
         steps, idx:0, remaining:steps[0].seconds,
         kind:steps[0].kind, phaseName:steps[0].name, contextLabel:steps[0].ctx,
-        upNext: steps[1]? steps[1].name : '', pct:0, setPct:0, curSetPct:0,
+        upNext: this.upNextLabel(steps,0), pct:0, setPct:0, curSetPct:0,
         setNum:0, totalSets:Math.max(1,t0.sets||1),
         label: this.session.name, logOnFinish:false, programId:this.session.programId, exIndex:null
       };
@@ -999,6 +965,13 @@ function app(){
         if(this.run.remaining<=0){ this._advance(); }
       },50);
     },
+    // "Stretch", or "90/90 Hip Switches – Stretch" when the next step starts a new exercise
+    upNextLabel(steps,idx){
+      const cur=steps[idx], next=steps[idx+1];
+      if(!next) return '';
+      if(!next.exTitle || (cur.exTitle===next.exTitle && cur.kind!=='prep')) return next.name;
+      return next.name===next.exTitle ? next.name : next.exTitle+' – '+next.name;
+    },
     _advance(){
       const done=this.run.steps[this.run.idx];
       if(done && done.lastOfEx && this.session && this.run.returnTo==='session'){
@@ -1014,7 +987,7 @@ function app(){
       const sn=cur.setNum, pps=cur.phasesPerSet, ts=this.run.totalSets;
       this.run.setPct=(sn>0&&pps>0&&ts>0) ? ((sn-1)*pps+cur.phaseInSet)/(ts*pps)*100 : 0;
       this.run.curSetPct=(sn>0&&pps>0) ? (cur.phaseInSet/pps*100) : 0;
-      this.run.upNext=this.run.steps[this.run.idx+1]?this.run.steps[this.run.idx+1].name:'';
+      this.run.upNext=this.upNextLabel(this.run.steps,this.run.idx);
       this.beep(cur.kind==='rest'?440:880,0.12);
       this.vibrate(cur.kind);
     },
@@ -1044,14 +1017,14 @@ function app(){
       clearInterval(this._tick);
       const back=this.run.returnTo;
       this.run={active:false}; this._syncWakeLock();
-      if(back==='session'){ this.showSession=true; }
+      if(back==='session'){ this.resumeSession(); }
     },
     // called from the "Done" button on the finished screen
     closeRun(){
       clearInterval(this._tick);
       const back=this.run.returnTo;
       this.run={active:false}; this._syncWakeLock();
-      if(back==='session'){ this.showSession=true; }
+      if(back==='session'){ this.resumeSession(); }
     },
 
     // ---------- audio ----------
@@ -1126,15 +1099,16 @@ function app(){
       const items=this.log.filter(l=>l.date===this.cal.selected).sort((a,b)=>b.ts-a.ts).map(l=>({...l,pending:false}));
       if(this.session){
         const pk=this._dateKey(new Date(this.session.startedTs));
-        if(pk===this.cal.selected) items.unshift({ts:this.session.startedTs,name:this.session.name,programId:this.session.programId,date:pk,pending:true,exDone:[...this.session.exDone],timerIds:[...this.session.timerIds],labels:this.session.labels});
+        if(pk===this.cal.selected) items.unshift({ts:this.session.startedTs,name:this.session.name,programId:this.session.programId,date:pk,pending:true,exDone:[...this.session.exDone],names:this.session.entries.map(e=>this.entryTitle(e))});
       }
       return items;
     },
     calSessionTimers(item){
       const lbl=(arr,i)=>arr&&arr[i];
+      if(item.exDone && item.names) return item.names.map((name,i)=>({name,done:item.exDone[i]}));
       if(item.exDone && item.timerIds) return item.timerIds.map((id,i)=>({name:this.entryName(id,lbl(item.labels,i)),done:item.exDone[i]}));
       const prog=this.programs.find(p=>p.id===item.programId);
-      if(prog) return prog.timerIds.map((id,i)=>({name:this.entryName(id,lbl(prog.labels,i)),done:true}));
+      if(prog) return prog.entries.map(e=>({name:this.entryTitle(e),done:true}));
       return [];
     },
     calToggleDetail(ts){ this.calDetail=this.calDetail===ts?null:ts; },
@@ -1156,7 +1130,7 @@ function app(){
 
     // ---------- export / import ----------
     exportData(){
-      const data=JSON.stringify({timers:this.timers,programs:this.programs,log:this.log},null,2);
+      const data=JSON.stringify({version:2,programs:this.programs,log:this.log},null,2);
       try{
         const blob=new Blob([data],{type:'application/json'});
         const url=URL.createObjectURL(blob);
@@ -1179,11 +1153,13 @@ function app(){
         try{
           const d=JSON.parse(reader.result);
           if(!d || typeof d!=='object') throw new Error('bad');
-          const mode = this.timers.length||this.programs.length||this.log.length
+          // 1.x exports reference timers; inline them and keep them for naming old log entries
+          (d.programs||[]).forEach(p=>this.migrateProgram(p,d.timers||[]));
+          const mode = this.programs.length||this.log.length
             ? (confirm('Replace all current data?\n\nOK = replace everything\nCancel = merge with existing') ? 'replace' : 'merge')
             : 'replace';
           if(mode==='replace'){
-            this.timers = d.timers||[];
+            this.timers = d.timers||this.timers;
             this.programs = d.programs||[];
             this.log = d.log||[];
           }else{
@@ -1195,7 +1171,7 @@ function app(){
             (d.log||[]).forEach(l=>{ if(!ts.has(l.ts)) this.log.push(l); });
           }
           this.save();
-          alert('Imported '+(d.timers?.length||0)+' timers, '+(d.programs?.length||0)+' programs, '+(d.log?.length||0)+' sessions.');
+          alert('Imported '+(d.programs?.length||0)+' programs, '+(d.log?.length||0)+' sessions.');
         }catch(e){
           alert('Could not import: the file is not valid Interval-Timer data.');
         }
