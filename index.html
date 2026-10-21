@@ -149,6 +149,8 @@
   .round.big.go { background: var(--accent-2); color: #062418; }
   .round.hidden { visibility: hidden; }
   .pill-btn { border-radius: 999px !important; padding: 16px 40px !important; font-size: 17px !important; }
+  .paused-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 22px; }
+  .paused-actions .btn { border-radius: 999px; padding: 11px 18px; }
   .done-screen .big { font-size: 40px; font-weight: 800; letter-spacing: -.5px; }
   .done-screen .check-big { width: 88px; height: 88px; border-radius: 50%; background: rgba(61,220,151,.15); color: var(--accent-2); display: flex; align-items: center; justify-content: center; font-size: 44px; margin: 0 auto 18px; }
 
@@ -246,7 +248,7 @@
     <div class="card resume-banner" @click="resumeSession()">
       <div class="grow">
         <div class="name" x-text="session.name"></div>
-        <div class="sub" x-text="sessionDoneCount()+' of '+session.entries.length+' exercises done'"></div>
+        <div class="sub" x-text="session.savedRun ? 'Paused at '+session.savedRun.phaseName+' · '+sessionDoneCount()+' of '+session.entries.length+' done' : sessionDoneCount()+' of '+session.entries.length+' exercises done'"></div>
       </div>
       <button class="play-btn" @click.stop="resumeSession()" aria-label="Resume"><svg class="i" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
     </div>
@@ -283,7 +285,7 @@
           <div class="grow" style="min-width:0">
             <div class="name" x-text="p.name"></div>
             <div class="sub" x-text="plural(p.entries.length,'exercise')+' · '+fmt(programDuration(p.entries, p.breakSeconds))+(completionCount(p.id) ? ' · '+completionCount(p.id)+'× done' : '')"></div>
-            <span class="badge" x-show="session && session.programId===p.id && sessionDoneCount()">In progress</span>
+            <span class="badge" x-show="session && session.programId===p.id && sessionStarted()">In progress</span>
           </div>
           <button class="btn icon-btn" @click.stop="editProgram(p)" aria-label="Edit program"><svg class="i" viewBox="0 0 24 24"><path d="M4 17.25V20h2.75L17.8 8.94l-2.75-2.75L4 17.25zm15.7-10.2a1 1 0 0 0 0-1.42l-1.33-1.33a1 1 0 0 0-1.42 0l-1.1 1.1 2.75 2.75 1.1-1.1z"/></svg></button>
           <button class="play-btn" @click.stop="openProgram(p)" aria-label="Open program"><svg class="i" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
@@ -617,9 +619,13 @@
         </div>
         <h2 class="session-title" x-text="session.name"></h2>
         <div class="muted" style="margin-bottom:14px">Tap an exercise to choose where to start, or ▶ to run just that one.</div>
+        <template x-if="session.savedRun">
+          <button class="btn green block" style="margin-bottom:8px" @click="resumeSavedRun()"
+            x-text="'Resume '+session.savedRun.phaseName+' · '+fmtClock(session.savedRun.remaining)+' left'"></button>
+        </template>
         <template x-if="!sessionAllDone()">
-          <button class="btn green block" style="margin-bottom:6px" @click="startFromSelected()"
-            x-text="sessionDoneCount() ? 'Continue from '+entryTitle(session.entries[selEx]) : 'Start from '+entryTitle(session.entries[selEx])"></button>
+          <button class="btn block" :class="session.savedRun ? 'ghost' : 'green'" style="margin-bottom:6px" @click="startFromSelected()"
+            x-text="(session.savedRun ? 'Restart from ' : sessionDoneCount() ? 'Continue from ' : 'Start from ')+entryTitle(session.entries[selEx])"></button>
         </template>
 
         <template x-for="(t, i) in session.entries" :key="i">
@@ -648,10 +654,7 @@
         </template>
 
         <div style="margin-top:28px;text-align:center">
-          <button class="btn danger ghost sm"
-            @click="confirmId==='session' ? abandonSession() : confirmId='session'"
-            @mouseleave="confirmId=null"
-            x-text="confirmId==='session' ? 'Sure? Discard progress' : 'Abandon program'"></button>
+          <button class="btn danger ghost sm" x-show="sessionStarted()" @click="confirmAbandon() && abandonSession()">Abandon program</button>
         </div>
       </div>
     </div>
@@ -663,7 +666,7 @@
       <template x-if="!run.finished">
         <div class="timer-content" style="width:100%; max-width:480px">
           <div class="runner-top">
-            <button class="btn icon-btn" @click="exitRun()" :aria-label="run.returnTo==='session' ? 'Back to program' : 'Stop'">✕</button>
+            <button class="btn icon-btn" @click="exitRun()" aria-label="Continue later">✕</button>
             <span class="muted" style="font-weight:600;font-variant-numeric:tabular-nums" x-show="run.totalSets>1 && run.setNum>0" x-text="'Set '+run.setNum+' of '+run.totalSets"></span>
             <button class="btn icon-btn" @click="toggleVoice()" :aria-label="settings.voice ? 'Mute voice' : 'Unmute voice'"><span x-show="settings.voice"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span><span x-show="!settings.voice"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9.5l5 5m0-5l-5 5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span></button>
           </div>
@@ -673,7 +676,7 @@
             <svg class="ring-svg" viewBox="0 0 100 100">
               <circle class="ring-track" cx="50" cy="50" r="47"></circle>
               <circle class="ring-overall" cx="50" cy="50" r="47" :style="overallRingStyle()"></circle>
-              <circle class="ring-set" cx="50" cy="50" :r="setRingRadius()" :style="setRingStyle()" x-show="run.totalSets>1"></circle>
+              <circle class="ring-set" cx="50" cy="50" :r="setRingRadius()" :style="setRingStyle()"></circle>
             </svg>
             <div class="time" :style="'color:'+contrastColor(run.steps[run.idx].color)+';transition-duration:'+colorAnimMs()+'ms'" x-text="fmtClock(run.remaining, run.steps[run.idx].seconds)"></div>
           </div>
@@ -694,6 +697,12 @@
                 <span x-show="run.paused"><svg class="i" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></span><span x-show="!run.paused"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg></span>
               </button>
               <button class="round" @click="skipPhase()" aria-label="Skip phase" style="font-size:22px"><svg class="i" viewBox="0 0 24 24"><path d="M5 6.2v11.6a.9.9 0 0 0 1.4.75L15 12.75a.9.9 0 0 0 0-1.5L6.4 5.45A.9.9 0 0 0 5 6.2z"/><rect x="16.5" y="5.5" width="2.8" height="13" rx="1"/></svg></button>
+            </div>
+          </template>
+          <template x-if="run.paused && !(run.idx===0 && run.pct===0)">
+            <div class="paused-actions">
+              <button class="btn ghost" @click="exitRun()">Continue later</button>
+              <button class="btn danger" @click="abandonFromRun()">Abandon program</button>
             </div>
           </template>
         </div>
@@ -717,7 +726,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '2.6.1',
+    version: '2.7.0',
     timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
     programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
@@ -889,7 +898,8 @@ function app(){
       const pct=this.run.curSetPct||0;
       const cur=this.run.steps && this.run.steps[this.run.idx];
       const color=this.neonAccent(cur && cur.color);
-      return 'stroke:'+color+(pct===0?';transition:none':'');
+      // display lives here, not in x-show: a :style string would overwrite x-show's display:none
+      return 'stroke:'+color+(pct===0?';transition:none':'')+(this.run.totalSets>1?'':';display:none');
     },
 
     // ---------- timer logic ----------
@@ -1048,7 +1058,7 @@ function app(){
     openProgram(p){
       if(this.session && this.session.programId===p.id){ this.resumeSession(); return; }
       if(!p.entries.length){ alert('This program has no exercises.'); return; }
-      if(this.session && this.sessionDoneCount()){
+      if(this.sessionStarted()){
         if(!confirm(`"${this.session.name}" is still in progress. Abandon it and open "${p.name}"?`)) return;
       }
       this.session={
@@ -1063,11 +1073,27 @@ function app(){
     },
     resumeSession(){ if(!this.session) return; this.selEx=this.firstOpenEx(); this.showSession=true; },
     firstOpenEx(){ const i=this.session.exDone.findIndex(d=>!d); return i<0?0:i; },
-    // back to main app; a session with nothing done yet is just a peek and gets dropped
+    // back to main app; a session that was never run is just a peek and gets dropped
     minimizeSession(){
       this.showSession=false;
-      if(this.session && !this.sessionDoneCount()){ this.session=null; this.saveSession(); }
+      if(this.session && !this.sessionStarted()){ this.session=null; this.saveSession(); }
     },
+    sessionStarted(){ return !!(this.session && (this.sessionDoneCount() || this.session.savedRun || this.session.ran)); },
+    confirmAbandon(){ return confirm('Abandon "'+this.session.name+'"? Progress on it is discarded.'); },
+    // picks a run up exactly where "Continue later" left it (also after a reload)
+    resumeSavedRun(){
+      const r=this.session.savedRun; if(!r) return;
+      this.session.savedRun=null; this.saveSession();
+      this.run={...r, active:true, paused:true};
+      this._startTick();
+    },
+    abandonFromRun(){
+      if(!this.confirmAbandon()) return;
+      clearInterval(this._tick); this.hush();
+      this.run={active:false}; this._syncWakeLock();
+      this.abandonSession();
+    },
+
     toggleExDone(i){
       this.session.exDone[i]=!this.session.exDone[i];
       if(this.session.exDone[i]) this.session.lastExerciseTs=Date.now();
@@ -1140,7 +1166,7 @@ function app(){
       }
       this.session=null; this.saveSession(); this.showSession=false;
     },
-    abandonSession(){ this.session=null; this.saveSession(); this.showSession=false; this.confirmId=null; },
+    abandonSession(){ this.session=null; this.saveSession(); this.showSession=false; },
 
     // ---------- interval ticking ----------
     // keep the screen on while a timer is actively running
@@ -1229,16 +1255,22 @@ function app(){
     },
     startRunFromPrep(){ // user presses the big start; un-pause and beep
       this.run.paused=false; this.beep(880,0.12); this.vibrate('work'); this._syncWakeLock();
+      // a freshly started run replaces any saved position
+      if(this.run.returnTo==='session' && this.session){ this.session.ran=true; this.session.savedRun=null; this.saveSession(); }
       // speaking inside the tap also unlocks speech on iOS for the rest of the run
       this.say(this.spokenStep(this.run.idx));
     },
     togglePause(){ this.run.paused=!this.run.paused; this._syncWakeLock(); if(this.run.paused) this.hush(); },
     skipPhase(){ this.run.remaining=0; },
-    // leave the interval overlay back to where we came from (session keeps progress, but
-    // the current in-progress exercise is NOT marked done)
+    // leave the interval overlay back to the program; once the run got going its exact
+    // position is saved so it can be resumed later
     exitRun(){
       clearInterval(this._tick); this.hush();
       const back=this.run.returnTo;
+      if(back==='session' && this.session && !this.run.finished && !(this.run.idx===0 && this.run.pct===0)){
+        this.session.savedRun=JSON.parse(JSON.stringify({...this.run, paused:true}));
+        this.saveSession();
+      }
       this.run={active:false}; this._syncWakeLock();
       if(back==='session'){ this.resumeSession(); }
     },
