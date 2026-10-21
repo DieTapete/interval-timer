@@ -184,6 +184,10 @@
   .setting-range { margin-top: 12px; }
   .setting-range label { display:flex; justify-content:space-between; }
   .setting-range input[type=range] { padding: 0; border: 0; background: transparent; accent-color: var(--accent); }
+  .sw-time { font-size: clamp(56px, 18vw, 96px); font-weight: 800; font-variant-numeric: tabular-nums; text-align:center; margin: 30px 0 10px; line-height:1; }
+  .sw-time small { font-size: .4em; color: var(--muted); }
+  .sw-laps { margin-top: 18px; }
+  .sw-lap { display:flex; justify-content:space-between; padding:8px 4px; border-bottom:1px solid var(--border); font-variant-numeric: tabular-nums; font-size:14px; }
   .btn.ghost.danger { background:transparent; color:var(--danger); border:1px solid var(--border); }
 </style>
 </head>
@@ -219,13 +223,25 @@
     </div>
   </template>
 
+  <template x-if="sw.startTs && !showStopwatch">
+    <div class="card resume-banner" @click="openStopwatch()">
+      <div class="grow">
+        <div class="name" x-text="'⏱ Stopwatch '+fmtStopwatch(swNow)"></div>
+        <div class="sub">Running — tap to open</div>
+      </div>
+    </div>
+  </template>
+
   <!-- ============ PROGRAMS TAB ============ -->
   <template x-if="tab==='programs'">
     <div>
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
           <h2 style="margin:0">Your programs</h2>
-          <button class="btn primary sm" @click="newProgram()">+ New program</button>
+          <div class="row" style="gap:6px">
+            <button class="btn sm" @click="openStopwatch()">⏱ Stopwatch</button>
+            <button class="btn primary sm" @click="newProgram()">+ New program</button>
+          </div>
         </div>
         <template x-if="programs.length===0"><div class="empty">No programs yet. Tap “+ New program” to create one.</div></template>
         <template x-for="p in programs" :key="p.id">
@@ -309,7 +325,7 @@
                       <span x-text="s.name"></span>
                     </div>
                     <div class="sub">
-                      <span x-text="new Date(s.ts).toLocaleString()"></span>
+                      <span x-text="new Date(s.ts).toLocaleString()+(s.seconds?' · '+fmt(s.seconds):'')"></span>
                       <span x-show="s.pending" style="color:var(--warn);margin-left:6px">· In progress</span>
                       <span x-show="!s.pending && isPartialLog(s)" style="color:var(--warn);margin-left:6px">· Partial</span>
                     </div>
@@ -343,7 +359,7 @@
                 <div class="list-item" :style="calDetail===s.ts?'border-radius:12px 12px 0 0;border-bottom-color:transparent;':''" style="cursor:pointer" @click="calToggleDetail(s.ts)">
                   <div class="meta grow">
                     <div class="name" x-text="s.name"></div>
-                    <div class="sub" x-text="new Date(s.ts).toLocaleString()"></div>
+                    <div class="sub" x-text="new Date(s.ts).toLocaleString()+(s.seconds?' · '+fmt(s.seconds):'')"></div>
                   </div>
                   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                     <button class="btn danger sm" @click.stop="deleteLog(s.ts)">✕</button>
@@ -458,6 +474,17 @@
         </div>
         <h2 class="session-title" style="margin-bottom:14px">Settings</h2>
 
+        <div class="card" x-show="audioSessionSupported()">
+          <h2>Other audio</h2>
+          <label>When a podcast or music is playing</label>
+          <select x-model="settings.audioMix" @change="saveSettings(); applyAudioSession(); testVoice()">
+            <option value="ambient">Mix with it</option>
+            <option value="transient">Lower it briefly</option>
+            <option value="auto">Let iOS decide (may pause it)</option>
+          </select>
+          <div class="muted" style="margin-top:8px">If your podcast still stops, try another option. Voice is the usual culprit: beeps alone don't stop other audio.</div>
+        </div>
+
         <div class="card">
           <h2>Voice announcements</h2>
           <template x-if="!speechSupported()"><div class="muted">This browser can't speak.</div></template>
@@ -493,6 +520,43 @@
               <button class="btn ghost" style="margin-top:14px" @click="testVoice()">▶ Test voice</button>
             </div>
           </div></template>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ STOPWATCH SCREEN ============ -->
+  <template x-if="showStopwatch">
+    <div class="runner sessionscreen" style="text-align:left">
+      <div class="session-inner">
+        <div class="session-top">
+          <button class="btn ghost sm" @click="closeStopwatch()">‹ Back</button>
+        </div>
+        <h2 class="session-title">Stopwatch</h2>
+        <div class="sw-time" x-html="fmtStopwatch(swNow, true)"></div>
+        <div class="controls" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px">
+          <button class="btn" :class="sw.startTs ? 'ghost' : 'green'" style="padding:12px 22px;border-radius:999px;font-size:14px" @click="swToggle()"
+            x-text="sw.startTs ? '⏸ Pause' : (swNow ? '▶ Resume' : '▶ Start')"></button>
+          <button class="btn ghost" style="padding:12px 22px;border-radius:999px;font-size:14px" x-show="sw.startTs" @click="swLap()">Lap</button>
+          <button class="btn ghost" style="padding:12px 22px;border-radius:999px;font-size:14px" x-show="!sw.startTs && swNow" @click="swReset()">Reset</button>
+        </div>
+        <template x-if="!sw.startTs && swNow">
+          <div class="card">
+            <label>Log this session as</label>
+            <div class="row">
+              <input class="grow" x-model="sw.name" placeholder="Stopwatch" @change="swSave()">
+              <button class="btn green" @click="swLog()">Log it</button>
+            </div>
+          </div>
+        </template>
+        <div class="sw-laps" x-show="sw.laps.length">
+          <template x-for="(l,i) in [...sw.laps].reverse()" :key="i">
+            <div class="sw-lap">
+              <span class="muted" x-text="'Lap '+(sw.laps.length-i)"></span>
+              <span x-text="fmtStopwatch(l-(sw.laps[sw.laps.length-i-2]||0))"></span>
+              <span class="muted" x-text="fmtStopwatch(l)"></span>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -606,7 +670,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '2.4.0',
+    version: '2.5.0',
     timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
     programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
@@ -622,8 +686,11 @@ function app(){
     _tick:null, _audioCtx:null, _wakeLock:null,
     showEditor: false, _editorSnap: '',
     showSettings: false,
-    settings: { voice:true, voiceURI:'', rate:1.05, pitch:1, volume:1, heads:true, durations:true },
+    settings: { voice:true, voiceURI:'', rate:1.05, pitch:1, volume:1, heads:true, durations:true, audioMix:'ambient' },
     voices: [],           // [{uri,name,lang}] offered in settings
+    showStopwatch: false,
+    sw: { startTs:null, base:0, laps:[], name:'' }, // elapsed = base + (now - startTs) while running; laps are elapsed ms
+    swNow: 0, _swTick:null,
 
     // ---------- persistence ----------
     init(){
@@ -652,6 +719,9 @@ function app(){
       if(changed) this.save();
       Object.assign(this.settings, this.load('it_settings', {}));
       if(this.load('it_voice', null)===false && !localStorage.getItem(this._key('it_settings'))) this.settings.voice=false; // 2.3.0 toggle
+      this.applyAudioSession();
+      Object.assign(this.sw, this.load('it_stopwatch', {}));
+      if(this.sw.startTs) this._swStartTick();
       if(this.speechSupported()){ this.loadVoices(); speechSynthesis.addEventListener?.('voiceschanged',()=>this.loadVoices()); }
     },
     // Old programs stored timerIds[] + labels[]; inline a copy of each timer as an entry.
@@ -1011,13 +1081,13 @@ function app(){
     // ---------- interval ticking ----------
     // keep the screen on while a timer is actively running
     async _syncWakeLock(){
-      const want=!!(this.run && this.run.active && !this.run.paused && !this.run.finished);
+      const want=!!(this.run && this.run.active && !this.run.paused && !this.run.finished) || !!(this.showStopwatch && this.sw.startTs);
       try{
         if(want && !this._wakeLock && 'wakeLock' in navigator && document.visibilityState==='visible'){
           const lock=await navigator.wakeLock.request('screen');
           this._wakeLock=lock;
           lock.addEventListener('release',()=>{ if(this._wakeLock===lock) this._wakeLock=null; });
-          if(!(this.run && this.run.active && !this.run.paused && !this.run.finished)) this._syncWakeLock();
+          if(!(this.run && this.run.active && !this.run.paused && !this.run.finished) && !(this.showStopwatch && this.sw.startTs)) this._syncWakeLock();
         } else if(!want && this._wakeLock){
           const l=this._wakeLock; this._wakeLock=null; await l.release();
         }
@@ -1115,6 +1185,37 @@ function app(){
       this.run={active:false}; this._syncWakeLock();
       if(back==='session'){ this.resumeSession(); }
     },
+
+    // ---------- stopwatch ----------
+    // Time comes from Date.now(), so it stays right across backgrounding and reloads.
+    swElapsed(){ return this.sw.base+(this.sw.startTs ? Date.now()-this.sw.startTs : 0) },
+    swSave(){ localStorage.setItem(this._key('it_stopwatch'), JSON.stringify(this.sw)); },
+    _swStartTick(){ clearInterval(this._swTick); this.swNow=this.swElapsed(); this._swTick=setInterval(()=>{ this.swNow=this.swElapsed(); },50); },
+    openStopwatch(){ this.swNow=this.swElapsed(); this.showStopwatch=true; this._syncWakeLock(); },
+    closeStopwatch(){ this.showStopwatch=false; this._syncWakeLock(); },
+    swToggle(){
+      if(this.sw.startTs){ this.sw.base=this.swElapsed(); this.sw.startTs=null; clearInterval(this._swTick); this.swNow=this.sw.base; }
+      else { this.sw.startTs=Date.now(); this._swStartTick(); this.beep(880,0.12); }
+      this.swSave(); this._syncWakeLock();
+    },
+    swLap(){ this.sw.laps.push(this.swElapsed()); this.swSave(); this.beep(660,0.07); },
+    swReset(){ clearInterval(this._swTick); this.sw={startTs:null,base:0,laps:[],name:this.sw.name}; this.swNow=0; this.swSave(); },
+    swLog(){
+      const name=(this.sw.name||'').trim()||'Stopwatch', now=new Date();
+      this.log.push({ ts:now.getTime(), programId:null, name, date:this._dateKey(now), seconds:Math.round(this.sw.base/1000) });
+      this.save(); this.swReset(); this.showStopwatch=false; this._syncWakeLock();
+    },
+    // 1:02:03 / 2:03 (+ hundredths when big)
+    fmtStopwatch(ms,big){
+      ms=Math.max(0,ms); const t=Math.floor(ms/1000), h=Math.floor(t/3600), m=Math.floor(t/60)%60, s=t%60;
+      const main=(h ? h+':'+String(m).padStart(2,'0') : m)+':'+String(s).padStart(2,'0');
+      return big ? main+'<small>.'+String(Math.floor(ms/10)%100).padStart(2,'0')+'</small>' : main;
+    },
+
+    // ---------- audio session ----------
+    // Safari's Audio Session API decides whether our beeps/voice pause, duck or mix with other apps' audio.
+    audioSessionSupported(){ return !!(navigator.audioSession) },
+    applyAudioSession(){ try{ if(navigator.audioSession) navigator.audioSession.type=this.settings.audioMix||'auto'; }catch(e){} },
 
     // ---------- voice ----------
     // What to say for a step: its name, led by the exercise title when a new exercise starts,
