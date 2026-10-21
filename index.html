@@ -233,7 +233,7 @@
       <h1>Interval<span>·</span>Timer</h1>
       <span class="version" x-text="'v'+version"></span>
     </div>
-    <button class="btn icon-btn" @click="showSettings=true" aria-label="Settings">⚙&#xFE0E;</button>
+    <button class="btn icon-btn" style="font-size:22px !important" @click="showSettings=true" aria-label="Settings"><svg class="i" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
   </header>
 
   <nav>
@@ -524,6 +524,12 @@
         </div>
 
         <div class="card">
+          <h2>Sounds</h2>
+          <label class="check"><input type="checkbox" x-model="settings.clicks" @change="saveSettings()"> Click sounds when a phase changes</label>
+          <div class="muted" style="margin-top:6px">iPhones can't vibrate from a web app, so the app plays short clicks instead. Countdown beeps aren't affected.</div>
+        </div>
+
+        <div class="card">
           <h2>Voice announcements</h2>
           <template x-if="!speechSupported()"><div class="muted">This browser can't speak.</div></template>
           <template x-if="speechSupported()"><div>
@@ -711,7 +717,7 @@
 function app(){
   return {
     tab: 'programs',
-    version: '2.6.0',
+    version: '2.6.1',
     timers: [],           // legacy saved timers (pre-2.0), only kept to migrate old data and name old log entries
     programs: [], log: [],
     cal: { y: new Date().getFullYear(), m: new Date().getMonth(), selected: null },
@@ -727,7 +733,7 @@ function app(){
     _tick:null, _audioCtx:null, _wakeLock:null,
     showEditor: false, _editorSnap: '',
     showSettings: false,
-    settings: { voice:true, voiceURI:'', rate:1.05, pitch:1, volume:1, heads:true, durations:true, audioMix:'ambient' },
+    settings: { voice:true, voiceURI:'', rate:1.05, pitch:1, volume:1, heads:true, durations:true, audioMix:'ambient', clicks:true },
     voices: [],           // [{uri,name,lang}] offered in settings
     showStopwatch: false,
     sw: { startTs:null, base:0, laps:[], name:'' }, // elapsed = base + (now - startTs) while running; laps are elapsed ms
@@ -1345,7 +1351,7 @@ function app(){
         return;
       }
       // iOS fallback: noise bursts mimic haptic patterns
-      this._hapticClick(kind);
+      if(this.settings.clicks) this._hapticClick(kind);
     },
     _hapticClick(kind){
       try{
